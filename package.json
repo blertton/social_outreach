@@ -14,6 +14,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",
+    "test:integration": "node tests/integration/usage-limits.mjs",
     "db:check": "node --env-file=.env scripts/check-supabase.mjs",
     "eval": "node --env-file=.env scripts/eval-model.mjs",
     "db:login": "supabase login",

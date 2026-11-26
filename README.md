@@ -40,7 +40,17 @@ npm run test:e2e
 
 It starts its own Next.js server at http://127.0.0.1:3100. The reserved server-side `AI_PROVIDER=mock` setting will select deterministic inference when the AI layer is implemented; that client does not exist yet. Browser interception alone cannot mock server-to-server inference.
 
+`npm run test:integration` verifies the quota migration in a disposable PostgreSQL 17 Docker container, including real concurrent reservations and permissions. Start Docker Desktop first. The test downloads the official image if needed, exposes no ports, never accepts a hosted connection URL and removes its container afterward.
+
 `npm run eval` explicitly spends inference credits on eight synthetic classification cases and three independent draft cases using the configured model. It has bounded output, no automatic retries and no automatic model fallback. Reports stay in ignored `tmp/`. Passing labels or marker checks does not mean replies passed human quality review: the current model still invented a household size in the spike. These are tuning examples, not a held-out accuracy estimate. Ordinary automated tests require neither live Bluesky nor paid inference.
+
+## App safeguards in progress
+
+Server helpers in `lib/security/gates.ts` verify the session, reserve persistent quota before external work, and fail closed if quota checks fail. The draft helper also requires an owned result and completed relevant analysis, selects a dedicated condolence mode for bereavement, and blocks other sensitive/uncertain cases. Load ownership/analysis from the database, never from a request body's assertions.
+
+The prepared quota migration sets per-user limits of 10 searches/minute and 30/day, plus 20 AI attempts/minute and 100/day (UTC). Requests rejected by policy do not spend AI allowance; dispatched attempts count even if the provider fails. Each retry needs a separate reservation. Database locks coordinate across app instances; there is no in-memory-only limiter.
+
+These helpers are not yet wired into product endpoints, which do not exist. The quota migration has not been applied to the hosted project. Future routes must validate inputs/ownership, wrap external work in the appropriate helper, map GateError statuses to HTTP, and include `Retry-After` for HTTP 429. The CLI model spike is separate from authenticated app quotas and remains billable developer tooling. Request quotas do not replace the OpenRouter key's spending cap or human review.
 
 ## Working with coding agents
 

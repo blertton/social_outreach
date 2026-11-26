@@ -9,7 +9,9 @@ The Supabase CLI is a project dev dependency. Version 3 uses config.jsonc and re
 3. Create a migration with `npm run db:migration -- descriptive_name`; review the SQL in migrations/.
 4. Preview hosted changes with `npm run db:push:preview`, then apply reviewed changes with `npm run db:push`.
 
-No application schema migration has been created or applied yet. An empty migration directory is intentional until table/ownership rules are implemented. Do not run database reset against hosted reviewer data.
+The first prepared migration adds usage counters and the atomic reserve_usage function. It has not been applied to the hosted project. Product tables/ownership policies are still pending. Do not run database reset against hosted reviewer data.
+
+Run `npm run test:integration` with Docker Desktop running to test that migration in a disposable PostgreSQL container. It checks anonymous/direct-write denial, row isolation, daily limits and concurrent reservations without touching the linked project. Fixed limits can only be changed through a reviewed migration, not by a request parameter. No application route is protected until it uses the server gate before external work.
 
 Version config.jsonc and migrations; keep generated connection metadata, .temp and credentials ignored. Access to the Data API with a public key does not authorize CLI migration operations; the CLI requires separate account authorization.
 

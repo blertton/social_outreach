@@ -1,10 +1,18 @@
 # AI assistance log
 
-## 2026-11-26 ? Model feasibility spike
+## 2026-11-26 — User-selected quota adjustment
+
+- Updated the unapplied migration to the user's exact limits: searches 10/minute and 30/day; AI attempts 20/minute and 100/day. Updated tests, README and local planning/tracking notes to match; did not use a multiplication formula from the interrupted request.
+- Verification: all 36 unit tests passed. Disposable PostgreSQL 17 checks passed with 25 concurrent AI reservations allowing exactly 20 and blocking 5, the 30/day search boundary, permission/RLS checks and expired buckets. Whitespace checks passed. No hosted migration, commit or push occurred.
+
+## 2026-11-26 — Model feasibility and app safeguards
 
 - Added an explicit billable synthetic model spike. Initial incomplete responses required disabling reasoning. The first complete run matched 6/8 expected labels, confusing illness with bereavement and missing bakery/business relevance. Revised instructions matched 8/8 on the tuning set, not a held-out benchmark.
 - Human review caught invented household size/time-of-day details despite schema-valid output and absent injection markers. Further grounding instructions still produced an unsupported "all three of you". This remains an open quality failure, not a passing result. Latest resumed four-call run reported $0.000354923; this excludes previous attempts.
 - An attempted final run was not executed when automatic approval review hit a usage limit; after the user's continuation instruction, a normal approved retry completed. No approval check was bypassed.
+- Added deterministic draft eligibility and server-side session/ownership/quota gates. Prepared persistent minute/day quotas with a SECURITY DEFINER function, empty search_path, denied direct writes, RLS for usage reads and a per-user/action transaction lock.
+- These helpers are for future authenticated product endpoints; the developer CLI spike does not use app quotas. No hosted migration, product endpoint, commit or push was performed in this step.
+- Verification: 36 Jest tests passed, along with lint, TypeScript and production build. The migration was applied only in a disposable PostgreSQL 17 container: anonymous access, invalid actions and direct writes were denied; RLS hid other-user counters; 15 simultaneous AI calls allowed exactly 10 and blocked 5; daily caps and expired buckets behaved correctly. The container was removed afterward.
 
 ## 2026-11-26 — Pre-commit review fixes
 
