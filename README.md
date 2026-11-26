@@ -1,4 +1,4 @@
-﻿# Social Outreach
+# Social Outreach
 
 Find public conversations and prepare thoughtful replies for human review. Nothing is sent automatically.
 
@@ -25,10 +25,10 @@ npm run typecheck
 npm run build
 ```
 
-Jest is configured with Next.js's transformer and Testing Library. Add focused unit tests under `tests/unit/**/*.test.ts` or `.test.tsx` as business behavior is built. There are no unit tests yet; `npm test` will report that. To verify runner startup without claiming test coverage:
+Jest uses Next.js's transformer and Testing Library. Unit tests cover Supabase public-key validation, privileged-key rejection, HTTPS requirements and local loopback exceptions. Add business tests as features are built.
 
 ```sh
-npm test -- --runInBand --passWithNoTests
+npm test -- --runInBand
 ```
 
 Playwright currently contains one entry-page smoke test, not the full product journey:
@@ -55,7 +55,7 @@ Give an agent one bounded task with an observable outcome. Inspect existing code
 
 ## Intended stack and journey
 
-Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one inexpensive OpenRouter model. The Supabase and inference integrations will arrive with their features.
+Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one inexpensive OpenRouter model. Supabase client helpers and CLI setup are present; application login/session refresh, tables, RLS policies and inference remain to be implemented.
 
 Sign in → search → inspect source and contextual analysis → explicitly generate → edit → approve/reject → save and reopen.
 
@@ -63,7 +63,11 @@ Live Bluesky and Sample data stay visibly separate. Replies are grounded in sour
 
 ## Secrets and development notes
 
-Never copy `.env.local` values into source, logs or documentation. Add a placeholder-only `.env.example` when actual integration variables are known. This scaffold does not access those keys.
+Copy `.env.example` to `.env` and replace placeholders with your project URL and public publishable key. `.env` is the single local configuration file and is ignored by Git. Never put a secret/service-role key in a `NEXT_PUBLIC_` variable: Next.js embeds public variables in browser bundles. Runtime validation cannot undo exposure of a wrongly configured public variable.
+
+Run `npm run db:check` for a read-only Auth/Data API connectivity probe. The expected missing-table response confirms reachability, not table permissions, RLS, login or writes. The starter page and deterministic unit tests do not require real credentials. OpenRouter variables are reserved for the future inference feature.
+
+For migrations, follow [the database workflow](supabase/README.md): log in to the CLI, link the intended project, create versioned SQL in `supabase/migrations/`, preview with `npm run db:push:preview` and apply reviewed changes with `npm run db:push`. No schema changes through the dashboard SQL Editor. Local CLI settings do not automatically configure the hosted project. No application migrations have been applied yet.
 
 Changes stay local unless committing or pushing is explicitly requested. Optional machine-local notes are not required to build a fresh clone. Record genuine AI assistance, mistakes and corrections in [AI_LOG.md](AI_LOG.md), which belongs in the submitted repository.
 

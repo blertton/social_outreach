@@ -39,7 +39,7 @@ The scaffold includes lint/typecheck/build scripts, Jest configuration and a Pla
 
 ## Secrets and publishing
 
-Never print secrets. Access `.env.local` only when a task requires specific configuration; use placeholders in examples. Keep assessment PDFs, assignments, plans and spike notes untracked. Inspect staging scope before committing; do not blindly use `git add .`.
+Never print secrets. Access `.env` only when a task requires specific configuration; use placeholders in examples. Keep assessment PDFs, assignments, plans and spike notes untracked. Inspect staging scope before committing; do not blindly use `git add .`.
 
 Do not commit, push, deploy or send messages without applicable user authorization. Ordinary requested local coding and verification may proceed.
 
