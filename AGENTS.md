@@ -33,7 +33,7 @@ Authenticate and authorize protected operations, enforce RLS, validate inputs/ou
 
 ## Verification
 
-Jest covers meaningful unit/integration behavior. Playwright covers one or two complete journeys with server-side mock AI and synthetic posts. CI must not depend on live Bluesky or paid inference. Finite model evaluation is evidence, not a guarantee of safety.
+Jest covers meaningful logic/API behavior; isolated PostgreSQL covers migrations and RLS. Write focused Playwright acceptance tests before the browser behavior they specify, including failures and recovery. The user wants the agent to run and diagnose these checks rather than delegate routine bug discovery to them. CI must not depend on live Bluesky or paid inference. Explicit hosted smoke checks use temporary identities and synthetic data with cleanup. Finite model evaluation is evidence, not a guarantee of safety.
 
 The scaffold includes lint/typecheck/build scripts, Jest configuration and a Playwright entry-page smoke test. Add focused unit/integration tests with actual business behavior and evolve the browser smoke test into the complete review journey. Never claim checks passed unless run. Avoid placeholder tests, broad snapshots and tests that merely repeat implementation.
 
@@ -42,6 +42,8 @@ The scaffold includes lint/typecheck/build scripts, Jest configuration and a Pla
 Never print secrets. Access `.env` only when a task requires specific configuration; use placeholders in examples. Keep assessment PDFs, assignments, plans and spike notes untracked. Inspect staging scope before committing; do not blindly use `git add .`.
 
 Do not commit, push, deploy or send messages without applicable user authorization. Ordinary requested local coding and verification may proceed.
+
+Use slash-style commit messages such as feat/add-search or fix/validate-input; do not use colon prefixes.
 
 Maintain AI_LOG.md with genuine assistance, mistakes, verification and corrections. Preserve full history and never invent evidence.
 

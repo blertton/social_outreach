@@ -2,11 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  fullyParallel: true,
+  fullyParallel: false,
   expect: { timeout: 15_000 },
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:3100",
@@ -22,6 +22,7 @@ export default defineConfig({
       AI_PROVIDER: "mock", NEXT_TELEMETRY_DISABLED: "1", PLAYWRIGHT_TEST_BUILD: "1",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54329",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_key",
+      SUPABASE_SECRET_KEY: "sb_secret_test_key",
     },
   }],
 });

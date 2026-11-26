@@ -30,7 +30,7 @@ test("entry page, protected workspace and invalid sign-in behave safely", async 
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("sign-in persists across reload, refreshes the session and signs out", async ({ page, request }) => {
+test("sign-in, session refresh, sample search persistence and signout", async ({ page, request }) => {
   const before = await (await request.get("http://127.0.0.1:54329/test/status")).json();
   await page.goto("/login");
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
@@ -44,6 +44,23 @@ test("sign-in persists across reload, refreshes the session and signs out", asyn
   await expect(page.getByText("Signed in as reviewer@example.test")).toBeVisible();
   const after = await (await request.get("http://127.0.0.1:54329/test/status")).json();
   expect(after.refreshCount).toBeGreaterThan(before.refreshCount);
+  await page.getByLabel("Keywords or hashtags").fill("baby");
+  await page.getByLabel("Source", { exact: true }).selectOption("fixtures");
+  const savedSearch = page.waitForResponse((response) => response.url().endsWith("/api/search"));
+  await page.getByRole("button", { name: "Search posts" }).click();
+  expect((await savedSearch).status()).toBe(201);
+  await expect(page).toHaveURL(/\/searches\/[a-f0-9-]+$/);
+  await expect(page.getByText("Sample data — synthetic examples", { exact: true })).toBeVisible();
+  await expect(page.getByText("Our daughter arrived yesterday.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View original post" })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText("Our daughter arrived yesterday.", { exact: false })).toBeVisible();
+  await page.getByRole("link", { name: "New search" }).click();
+  await page.getByLabel("Keywords or hashtags").fill("unmatchablephrase");
+  await page.getByLabel("Source", { exact: true }).selectOption("fixtures");
+  await page.getByRole("button", { name: "Search posts" }).click();
+  await expect(page.getByRole("status")).toContainText("No matching posts");
+  await page.getByRole("link", { name: "New search" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/search");

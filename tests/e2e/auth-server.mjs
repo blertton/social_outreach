@@ -7,6 +7,7 @@ const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated",
   app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
 const tokens = new Set();
 let refreshCount = 0;
+const searches = []; const posts = []; const results = [];
 const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
 function session(short) {
   const expires = Math.floor(Date.now() / 1000) + (short ? 1 : 3600);
@@ -22,6 +23,35 @@ http.createServer(async (req, res) => {
   if (url.pathname === "/health") return reply(200, { ready: true });
   if (url.pathname === "/test/status") return reply(200, { refreshCount });
   const authorization = req.headers.authorization?.replace(/^Bearer /, "");
+  if (url.pathname.startsWith("/rest/v1/")) {
+    const trusted = req.headers.apikey === "sb_secret_test_key";
+    if (!trusted && !tokens.has(authorization)) return reply(401, { message: "Invalid session" });
+    if (url.pathname === "/rest/v1/rpc/reserve_usage") return reply(200, [{ allowed: true, remaining: 29, retry_after_seconds: 0 }]);
+    if (url.pathname === "/rest/v1/rpc/save_search" && trusted) {
+      let raw = ""; for await (const chunk of req) raw += chunk;
+      const input = JSON.parse(raw); const id = crypto.randomUUID();
+      searches.push({ id, user_id: input.p_user_id, query: input.p_query, source: input.p_source,
+        filtered_count: input.p_filtered, skipped_count: input.p_skipped });
+      input.p_posts.forEach((p, rank) => {
+        let post = posts.find((row) => row.external_id === p.external_id && row.user_id === input.p_user_id);
+        if (!post) { post = { ...p, id: crypto.randomUUID(), user_id: input.p_user_id, source: input.p_source }; posts.push(post); }
+        results.push({ id: crypto.randomUUID(), user_id: input.p_user_id, search_id: id, post_id: post.id,
+          source_text_snapshot: p.text, original_rank: rank, analysis_status: "pending" });
+      });
+      return reply(200, id);
+    }
+    if (req.method === "GET") {
+      let data = ({ searches, posts, search_results: results })[url.pathname.split("/").at(-1)];
+      if (!data) return reply(404, {});
+      data = data.filter((row) => row.user_id === user.id);
+      for (const [field, filter] of url.searchParams) {
+        if (filter.startsWith("eq.")) data = data.filter((row) => row[field] === filter.slice(3));
+        if (field === "id" && filter.startsWith("in.(")) data = data.filter((row) => filter.slice(4, -1).split(",").includes(row.id));
+      }
+      return reply(200, data);
+    }
+    return reply(403, {});
+  }
   if (url.pathname === "/auth/v1/user" && req.method === "GET") {
     return tokens.has(authorization) ? reply(200, user) : reply(401, { message: "Invalid session" });
   }
