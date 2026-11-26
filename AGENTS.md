@@ -44,3 +44,13 @@ Never print secrets. Access `.env.local` only when a task requires specific conf
 Do not commit, push, deploy or send messages without applicable user authorization. Ordinary requested local coding and verification may proceed.
 
 Maintain AI_LOG.md with genuine assistance, mistakes, verification and corrections. Preserve full history and never invent evidence.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
