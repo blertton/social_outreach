@@ -22,6 +22,16 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1:54329");
   if (url.pathname === "/health") return reply(200, { ready: true });
   if (url.pathname === "/test/status") return reply(200, { refreshCount });
+  if (url.pathname === "/test/seed-live-link" && req.method === "POST") {
+    const searchId = crypto.randomUUID(), postId = crypto.randomUUID();
+    searches.push({ id: searchId, user_id: user.id, query: "baby", source: "bluesky", filtered_count: 0, skipped_count: 0 });
+    posts.push({ id: postId, user_id: user.id, source: "bluesky", external_id: "at://did:plc:test/app.bsky.feed.post/abc123",
+      author_id: "did:plc:test", author_handle: "sample.test", posted_at: "2026-11-20T12:00:00Z",
+      url: "https://bsky.app/profile/did%3Aplc%3Atest/post/abc123" });
+    results.push({ id: crypto.randomUUID(), user_id: user.id, source: "bluesky", search_id: searchId, post_id: postId,
+      source_text_snapshot: "Synthetic link regression example", original_rank: 0, analysis_status: "pending" });
+    return reply(200, { searchId });
+  }
   const authorization = req.headers.authorization?.replace(/^Bearer /, "");
   if (url.pathname.startsWith("/rest/v1/")) {
     const trusted = req.headers.apikey === "sb_secret_test_key";

@@ -28,7 +28,8 @@ test("cross-origin calls are denied before session or privileged access", async 
   expect(createClient).not.toHaveBeenCalled(); expect(createAdminClient).not.toHaveBeenCalled();
 });
 test.each([{ query: " ", source: "fixtures" }, { query: "baby", source: "fixtures", user_id: "forged" },
-  { query: "baby", source: "fixtures", posts: [] }])("untrusted input is rejected before quota or source calls", async (body) => {
+  { query: "baby", source: "fixtures", posts: [] }, { query: "baby,,home", source: "bluesky" },
+  { query: "one,two,three,four,five", source: "bluesky" }])("untrusted input is rejected before quota or source calls", async (body) => {
   expect((await POST(request(body))).status).toBe(400); expect(rpc).not.toHaveBeenCalled();
 });
 test("oversized bodies are rejected", async () => {

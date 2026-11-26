@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireReviewer } from "@/lib/auth/session";
 import { readSavedAnalysis } from "@/lib/ai/analysis-schema";
 import { AnalysisPanel } from "./analysis-panel";
+import { blueskyPostUrl } from "@/lib/sources/urls";
 
 export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,16 +22,22 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
   if (postError) throw new Error("Source posts are temporarily unavailable.");
   const byId = new Map((posts ?? []).map((p) => [p.id, p]));
   return <main className="mx-auto max-w-4xl px-6 py-10">
-    <Link href="/search" className="text-sm underline underline-offset-4">New search</Link>
+    <nav aria-label="Search actions" className="flex flex-wrap gap-5 text-sm underline underline-offset-4">
+      <Link href="/search">New search</Link>
+      <Link href={{ pathname: "/search", query: { query: search.query, source: search.source } }}>Refine search</Link>
+    </nav>
     <header className="my-8 border-b pb-6">
       <p className="text-sm font-medium text-muted-foreground">{search.source === "fixtures" ? "Sample data — synthetic examples" : "Bluesky — public posts"}</p>
-      <h1 className="mt-3 break-words text-3xl font-semibold">Results for “{search.query}”</h1>
-      <p className="mt-3 text-sm text-muted-foreground">{results?.length ?? 0} posts · Saved to your workspace</p>
+      <h1 className="mt-3 text-3xl font-semibold">Search results</h1>
+      <p className="mt-3 break-words leading-relaxed">{search.query}</p>
+      <p className="mt-3 text-sm text-muted-foreground">{results?.length ?? 0} {results?.length === 1 ? "post" : "posts"} · Saved to your workspace</p>
+      {!!results?.length && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">These are search matches, not verified opportunities. Look for the author’s own experience, then use Analyze post to check relevance and sensitivity.</p>}
       {(search.filtered_count > 0 || search.skipped_count > 0) && <p className="mt-2 text-sm text-muted-foreground">{search.filtered_count} excluded by source-label policy; {search.skipped_count} invalid records skipped.</p>}
     </header>
-    {!results?.length && <p role="status">No matching posts. Try a different phrase or source.</p>}
+    {!results?.length && <p role="status" className="leading-relaxed">No matching posts. Refine your search: try a shorter phrase, add an alternative with a comma, or optionally ask AI for more wording. Sample data only contains a few fixed examples.</p>}
     <div className="grid gap-5">{results?.map((result) => {
       const post = byId.get(result.post_id);
+      const originalUrl = post?.source === "bluesky" ? blueskyPostUrl(post.external_id, post.author_id) : null;
       return <article key={result.id} className="rounded-xl border p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>@{post?.author_handle ?? "Unavailable author"}</span>
@@ -40,7 +47,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         <AnalysisPanel resultId={result.id} status={result.analysis_status} model={result.analysis_model}
           analysis={result.analysis_status === "complete" ? readSavedAnalysis(result.analysis, result.source_text_snapshot) : null} />
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          {post?.source === "bluesky" && post.url?.startsWith("https://bsky.app/profile/") && <a href={post.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">View original post</a>}
+          {originalUrl && <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">View original post</a>}
         </div>
       </article>;
     })}</div>

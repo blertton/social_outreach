@@ -10,6 +10,7 @@ const publicKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const secret = process.env.SUPABASE_SECRET_KEY;
 const app = new URL(process.env.SMOKE_APP_URL ?? "http://localhost:3000");
 const checkAnalysis = process.argv.includes("--analysis");
+const checkSuggestions = process.argv.includes("--suggestions");
 let userId; let admin;
 try {
   if (app.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(app.hostname)) throw new Error("Local app required");
@@ -45,6 +46,19 @@ try {
   const { count, error } = await client.from("posts").select("id", { count: "exact", head: true });
   if (error || count !== 2) throw new Error("Canonical post deduplication failed");
   console.log("Real Supabase sign-in, app quota, trusted saving, result rendering and repeated-post deduplication passed using only synthetic data.");
+  if (checkSuggestions) {
+    const response = await fetch(new URL("/api/search/suggestions", app), { method: "POST",
+      headers: { Origin: app.origin, Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "cat adoption" }), signal: AbortSignal.timeout(70_000) });
+    const body = await response.json();
+    const { data: counters, error: counterError } = await client.from("usage_counters").select("count").eq("action", "ai").eq("period", "day");
+    const { count: searchesCount, error: searchCountError } = await client.from("searches").select("id", { count: "exact", head: true });
+    if (response.status !== 200 || typeof body.model !== "string" || body.model.startsWith("mock/") ||
+      !Array.isArray(body.phrases) || body.phrases.length < 1 || body.phrases.length > 3 ||
+      body.phrases.some((p) => typeof p !== "string" || p.length > 80) ||
+      counterError || counters?.length !== 1 || counters[0].count !== 1 || searchCountError || searchesCount !== 2) throw new Error("Suggestions smoke failed");
+    console.log("Real app phrase suggestions, OpenRouter inference and one AI quota reservation passed; no additional search was dispatched.");
+  }
   if (checkAnalysis) {
     const { data: result, error: resultError } = await client.from("search_results").select("*")
       .eq("search_id", searchIds[0]).eq("original_rank", 0).single();
@@ -64,13 +78,13 @@ try {
       analyzed.analysis?.relevance !== "relevant" || analyzed.analysis?.sensitivity !== "none" ||
       !result.source_text_snapshot.includes(analyzed.analysis?.evidence) ||
       untouched?.length !== 2 || untouched.some((row) => row.analysis_status !== "pending") ||
-      counters?.length !== 1 || counters[0].count !== 1) throw new Error("Analysis smoke failed");
+      counters?.length !== 1 || counters[0].count !== (checkSuggestions ? 2 : 1)) throw new Error("Analysis smoke failed");
     const page = await fetch(new URL(`/searches/${searchIds[0]}`, app), { headers: { Cookie: cookie }, signal: AbortSignal.timeout(45_000) });
     if (page.status !== 200 || !(await page.text()).includes("Standard reply allowed")) throw new Error("Analysis smoke failed");
     console.log("Real app analysis, OpenRouter inference, persisted evidence/RLS, cache reuse without quota and separate-search isolation passed.");
   }
 } catch (error) {
-  const safe = error instanceof Error && /^(Local search HTTP \d+|Local app required|Missing configuration|Temporary account setup failed|Temporary sign-in failed|Invalid search ID|Saved page did not render|Canonical post deduplication failed|Analysis smoke failed)$/.test(error.message) ? error.message : "Live smoke check could not complete";
+  const safe = error instanceof Error && /^(Local search HTTP \d+|Local app required|Missing configuration|Temporary account setup failed|Temporary sign-in failed|Invalid search ID|Saved page did not render|Canonical post deduplication failed|Analysis smoke failed|Suggestions smoke failed)$/.test(error.message) ? error.message : "Live smoke check could not complete";
   console.error(safe); process.exitCode = 1;
 } finally {
   if (userId && admin) {

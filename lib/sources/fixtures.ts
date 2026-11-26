@@ -1,4 +1,5 @@
 import type { SourcePost, SourceProvider } from "./types";
+import { matchesSampleQuery } from "@/lib/search/query";
 
 const examples = [
   { id: "new-parent", author: "sample.parent", text: "Our daughter arrived yesterday. We are exhausted and completely in love.", topics: "new baby newborn parent daughter" },
@@ -10,8 +11,7 @@ const examples = [
 
 export const fixtures: SourceProvider = {
   async search(query) {
-    const terms = query.toLowerCase().replace(/#/g, "").split(/\s+/).filter(Boolean);
-    const posts: SourcePost[] = examples.filter((p) => terms.every((t) => `${p.text} ${p.topics}`.toLowerCase().includes(t)))
+    const posts: SourcePost[] = examples.filter((p) => matchesSampleQuery(query, p.text, p.topics))
       .map((p) => ({ external_id: `sample:${p.id}`, author_id: `sample:${p.author}`, author_handle: p.author,
         text: p.text, url: null, posted_at: "2026-11-20T12:00:00Z" }));
     return { posts, filtered: 0, skipped: 0 };
