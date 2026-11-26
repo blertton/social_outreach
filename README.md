@@ -40,7 +40,7 @@ npm run test:e2e
 
 It starts its own Next.js server at http://127.0.0.1:3100. The reserved server-side `AI_PROVIDER=mock` setting will select deterministic inference when the AI layer is implemented; that client does not exist yet. Browser interception alone cannot mock server-to-server inference.
 
-Dedicated-database integration tests and explicit billable model evaluation will be added with persistence and AI. They do not have scripts yet. Ordinary automated tests must not require live Bluesky or paid inference.
+`npm run eval` explicitly spends inference credits on eight synthetic classification cases and three independent draft cases using the configured model. It has bounded output, no automatic retries and no automatic model fallback. Reports stay in ignored `tmp/`. Passing labels or marker checks does not mean replies passed human quality review: the current model still invented a household size in the spike. These are tuning examples, not a held-out accuracy estimate. Ordinary automated tests require neither live Bluesky nor paid inference.
 
 ## Working with coding agents
 

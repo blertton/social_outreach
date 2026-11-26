@@ -1,5 +1,11 @@
 # AI assistance log
 
+## 2026-11-26 ? Model feasibility spike
+
+- Added an explicit billable synthetic model spike. Initial incomplete responses required disabling reasoning. The first complete run matched 6/8 expected labels, confusing illness with bereavement and missing bakery/business relevance. Revised instructions matched 8/8 on the tuning set, not a held-out benchmark.
+- Human review caught invented household size/time-of-day details despite schema-valid output and absent injection markers. Further grounding instructions still produced an unsupported "all three of you". This remains an open quality failure, not a passing result. Latest resumed four-call run reported $0.000354923; this excludes previous attempts.
+- An attempted final run was not executed when automatic approval review hit a usage limit; after the user's continuation instruction, a normal approved retry completed. No approval check was bypassed.
+
 ## 2026-11-26 — Pre-commit review fixes
 
 - Removed UTF-8 BOMs and extra trailing blank lines introduced by PowerShell writes. The package.json BOM caused a real production-build failure.

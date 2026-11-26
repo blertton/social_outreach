@@ -15,6 +15,7 @@
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",
     "db:check": "node --env-file=.env scripts/check-supabase.mjs",
+    "eval": "node --env-file=.env scripts/eval-model.mjs",
     "db:login": "supabase login",
     "db:link": "supabase link",
     "db:migration": "supabase migration new",
