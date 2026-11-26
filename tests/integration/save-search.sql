@@ -6,6 +6,20 @@ begin
   if first_search = second_search then raise exception 'Distinct searches collapsed'; end if;
   if (select count(*) from public.posts where external_id='sample:persist') <> 1 then raise exception 'Post duplicated'; end if;
   if (select count(*) from public.search_results where search_id in (first_search,second_search)) <> 2 then raise exception 'Membership lost'; end if;
+  -- Analysis belongs to the query-specific result, not the deduplicated post.
+  begin
+    update public.search_results set analysis_status='complete' where search_id=first_search;
+    raise exception 'Incomplete analysis accepted';
+  exception when check_violation then null; end;
+  update public.search_results set analysis_status='complete',
+    analysis='{"relevance":"relevant","sensitivity":"none","reason":"Synthetic birth announcement.","evidence":"Synthetic baby announcement"}',
+    analysis_model='test/model', analysis_prompt_version='analysis-v1', analyzed_at=now()
+    where search_id=first_search;
+  if not exists (select 1 from public.search_results where search_id=second_search and analysis_status='pending' and analysis is null)
+    then raise exception 'Analysis leaked across queries'; end if;
+  update public.posts set text='Changed canonical text' where external_id='sample:persist';
+  if exists (select 1 from public.search_results where search_id in (first_search,second_search) and source_text_snapshot <> 'Synthetic baby announcement')
+    then raise exception 'Reviewed source snapshot changed'; end if;
   select count(*) into before_count from public.searches;
   begin
     perform public.save_search('00000000-0000-4000-8000-000000000001','baby','fixtures','[{"text":"invalid"}]');

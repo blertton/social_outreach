@@ -18,7 +18,7 @@ export class GateError extends Error {
   ) { super(message); }
 }
 
-async function requireUser(client: SupabaseClient) {
+export async function requireUser(client: SupabaseClient) {
   try {
     const { data, error } = await client.auth.getUser();
     if (error || !data.user) throw new GateError(401, "Sign in to continue.");
@@ -29,7 +29,7 @@ async function requireUser(client: SupabaseClient) {
   }
 }
 
-async function reserve(client: SupabaseClient, action: "search" | "ai") {
+export async function reserveUsage(client: SupabaseClient, action: "search" | "ai") {
   try {
     const { data, error } = await client.rpc("reserve_usage", { p_action: action });
     const result = quotaSchema.safeParse(data);
@@ -42,7 +42,7 @@ async function reserve(client: SupabaseClient, action: "search" | "ai") {
   }
 }
 
-// Future search/analysis routes validate inputs first and perform external work
+// Search/analysis routes validate inputs first and perform external work
 // only inside this callback. Every retry needs its own reservation.
 export async function withUsageGate<T>(
   client: SupabaseClient,
@@ -50,7 +50,7 @@ export async function withUsageGate<T>(
   operation: (userId: string) => Promise<T>,
 ) {
   const userId = await requireUser(client);
-  await reserve(client, action);
+  await reserveUsage(client, action);
   return operation(userId);
 }
 
@@ -66,6 +66,6 @@ export async function withDraftGate<T>(
   if (!result || result.userId !== userId) throw new GateError(403, "This result is unavailable.");
   const mode = draftMode(result.analysis);
   if (mode === "blocked") throw new GateError(403, "A reply cannot be generated for this result.");
-  await reserve(client, "ai");
+  await reserveUsage(client, "ai");
   return generate(mode);
 }

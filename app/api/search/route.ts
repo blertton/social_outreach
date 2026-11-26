@@ -7,28 +7,13 @@ import { bluesky } from "@/lib/sources/bluesky";
 import { fixtures } from "@/lib/sources/fixtures";
 import { hasSameOrigin } from "@/lib/security/origin";
 
-async function readBody(request: Request) {
-  const reader = request.body?.getReader();
-  if (!reader) throw new GateError(400, "A search request is required.");
-  const chunks: Uint8Array[] = []; let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read(); if (done) break;
-      size += value.length;
-      if (size > 4096) { await reader.cancel(); throw new GateError(413, "Search request is too large."); }
-      chunks.push(value);
-    }
-  } finally { reader.releaseLock(); }
-  const bytes = new Uint8Array(size); let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  try { return JSON.parse(new TextDecoder().decode(bytes)); } catch { return null; }
-}
+import { readJsonBody } from "@/lib/security/request";
 
 export async function POST(request: Request) {
   const headers: Record<string, string> = { "Cache-Control": "private, no-store" };
   try {
     if (!hasSameOrigin(request)) return NextResponse.json({ error: "Request origin is not allowed." }, { status: 403, headers });
-    const parsed = searchInput.safeParse(await readBody(request));
+    const parsed = searchInput.safeParse(await readJsonBody(request));
     if (!parsed.success) return NextResponse.json({ error: "Enter 1–300 characters and choose a valid source." }, { status: 400, headers });
     const client = await createClient();
     const id = await withUsageGate(client, "search", async (userId) => {

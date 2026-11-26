@@ -36,9 +36,20 @@ http.createServer(async (req, res) => {
         let post = posts.find((row) => row.external_id === p.external_id && row.user_id === input.p_user_id);
         if (!post) { post = { ...p, id: crypto.randomUUID(), user_id: input.p_user_id, source: input.p_source }; posts.push(post); }
         results.push({ id: crypto.randomUUID(), user_id: input.p_user_id, search_id: id, post_id: post.id,
-          source_text_snapshot: p.text, original_rank: rank, analysis_status: "pending" });
+          source: input.p_source, source_text_snapshot: p.text, original_rank: rank, analysis_status: "pending" });
       });
       return reply(200, id);
+    }
+    if (req.method === "PATCH" && url.pathname === "/rest/v1/search_results" && trusted) {
+      let raw = ""; for await (const chunk of req) raw += chunk;
+      const updates = JSON.parse(raw);
+      const changed = results.filter((row) => [...url.searchParams].every(([field, filter]) => {
+        if (filter.startsWith("eq.")) return row[field] === filter.slice(3);
+        if (filter.startsWith("neq.")) return row[field] !== filter.slice(4);
+        return true;
+      }));
+      for (const row of changed) Object.assign(row, updates);
+      return reply(200, changed);
     }
     if (req.method === "GET") {
       let data = ({ searches, posts, search_results: results })[url.pathname.split("/").at(-1)];

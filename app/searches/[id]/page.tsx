@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireReviewer } from "@/lib/auth/session";
+import { readSavedAnalysis } from "@/lib/ai/analysis-schema";
+import { AnalysisPanel } from "./analysis-panel";
 
 export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,8 +37,9 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
           {post && <time dateTime={post.posted_at}>{new Date(post.posted_at).toISOString().slice(0, 10)}</time>}
         </div>
         <p className="my-5 whitespace-pre-wrap break-words leading-relaxed">{result.source_text_snapshot}</p>
+        <AnalysisPanel resultId={result.id} status={result.analysis_status} model={result.analysis_model}
+          analysis={result.analysis_status === "complete" ? readSavedAnalysis(result.analysis, result.source_text_snapshot) : null} />
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <span className="text-muted-foreground">Contextual analysis not yet available</span>
           {post?.source === "bluesky" && post.url?.startsWith("https://bsky.app/profile/") && <a href={post.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">View original post</a>}
         </div>
       </article>;
