@@ -76,6 +76,9 @@ try {
   sql(readFileSync(new URL("../../supabase/migrations/20261126230000_review_schema.sql", import.meta.url), "utf8"));
   sql(readFileSync(new URL("./review-schema.sql", import.meta.url), "utf8"));
   console.log("Review schema: dedupe, cross-owner constraints/RLS, protected AI fields, review-state resets and deletion cascades passed.");
+  sql(readFileSync(new URL("../../supabase/migrations/20261126235000_save_search.sql", import.meta.url), "utf8"));
+  sql(readFileSync(new URL("./save-search.sql", import.meta.url), "utf8"));
+  console.log("Search persistence: trusted-only RPC, repeated-post dedupe, distinct searches and atomic rollback passed.");
 } finally {
   if (container && /^[a-f0-9]{64}$/.test(container)) docker(["rm", "-f", container]);
 }

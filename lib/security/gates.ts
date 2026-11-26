@@ -12,7 +12,7 @@ const quotaSchema = z.array(z.object({
 
 export class GateError extends Error {
   constructor(
-    public readonly status: 401 | 403 | 429 | 503,
+    public readonly status: 400 | 401 | 403 | 413 | 429 | 503,
     message: string,
     public readonly retryAfterSeconds?: number,
   ) { super(message); }

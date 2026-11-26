@@ -166,22 +166,28 @@ export type Database = {
       searches: {
         Row: {
           created_at: string
+          filtered_count: number
           id: string
           query: string
+          skipped_count: number
           source: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          filtered_count?: number
           id?: string
           query: string
+          skipped_count?: number
           source: string
           user_id: string
         }
         Update: {
           created_at?: string
+          filtered_count?: number
           id?: string
           query?: string
+          skipped_count?: number
           source?: string
           user_id?: string
         }
@@ -223,6 +229,17 @@ export type Database = {
           remaining: number
           retry_after_seconds: number
         }[]
+      }
+      save_search: {
+        Args: {
+          p_filtered?: number
+          p_posts: Json
+          p_query: string
+          p_skipped?: number
+          p_source: string
+          p_user_id: string
+        }
+        Returns: string
       }
     }
     Enums: {

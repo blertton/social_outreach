@@ -1,5 +1,14 @@
 # AI assistance log
 
+## 2026-11-26 — Filtered search and browser TDD
+
+- Added bounded Bluesky/Sample adapters, pre-persistence label filtering, normalized source evidence, protected search API, transactional trusted-only persistence and saved-result UI. Server key retrieved through the authorized CLI and stored only in ignored .env; no key value printed. Analysis/drafting are still absent and results say so.
+- Caught a missing snapshot expression through disposable PostgreSQL tests before applying the search migration. Fixed it, reran SQL checks, previewed/applied only the expected migration, regenerated SDK types and confirmed all three local/remote versions match.
+- User requested broader browser TDD during this work. Initial search implementation preceded that instruction. Wrote a failing Retry-After browser scenario first, then implemented the waiting-time message and verified it green. Browser tests exposed an actual 403: Next internally reconstructed the URL with another hostname. Fixed origin validation against HTTP Host without trusting forwarded-host input, with new unit tests for allowed/denied origins.
+- Verification: 82 Jest tests; eight production-mode Playwright Auth/search scenarios; real PostgreSQL permissions/RLS, atomic-save rollback and dedupe checks; lint, TypeScript and production build. Inspected the mobile results screenshot. Live adapter request normalized 15 posts, excluded 5 labelled records and skipped 0 without logging source content or sending it to AI.
+- Ran an additional smoke check through the actual local app and hosted Supabase with a temporary confirmed identity and synthetic posts. Verified real login/quota/trusted saving/rendering/repeated-post dedupe, then deleted the identity and cascading records. Ordinary Playwright uses in-memory HTTP fixtures; those tests are not described as real database persistence.
+- No commits or pushes in this work. Remaining: contextual analysis, reply-grounding improvements, full draft review and pre-deployment platform/contact/deletion checks.
+
 ## 2026-11-26 — Supabase Auth and browser journeys
 
 - Implemented Supabase SDK password sign-in, signup, signout and SSR session refresh, with a protected workspace and server-side user verification. Signup supersedes the initial provisioned-account-only assumption at the user's explicit request. Hosted read-only settings show signup enabled and email confirmation required; no configuration push or account/email creation was performed by this tooling.

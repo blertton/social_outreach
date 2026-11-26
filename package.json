@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "test:integration": "node tests/integration/usage-limits.mjs",
     "db:check": "node --env-file=.env scripts/check-supabase.mjs",
+    "smoke:search": "node --env-file=.env scripts/smoke-search.mjs",
     "eval": "node --env-file=.env scripts/eval-model.mjs",
     "db:login": "supabase login",
     "db:link": "supabase link",
