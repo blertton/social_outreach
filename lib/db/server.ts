@@ -5,16 +5,20 @@ import { cookies } from "next/headers";
 import { getSupabaseConfig } from "./config";
 import type { Database } from "./database.types";
 
-// For route handlers/server actions where writing session cookies is permitted.
-// Add the Auth refresh proxy before using this client in protected pages.
+// Proxy refreshes sessions before rendering; pages may read but not write cookies.
 export async function createClient() {
   const { url, key } = getSupabaseConfig();
   const cookieStore = await cookies();
   return createServerClient<Database>(url, key, {
+    global: { fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(10_000) }) },
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (values) => {
-        for (const { name, value, options } of values) cookieStore.set(name, value, options);
+        try {
+          for (const { name, value, options } of values) cookieStore.set(name, value, options);
+        } catch {
+          // Read-only Server Component context; proxy already refreshes cookies.
+        }
       },
     },
   });

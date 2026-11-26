@@ -1,5 +1,13 @@
 # AI assistance log
 
+## 2026-11-26 — Supabase Auth and browser journeys
+
+- Implemented Supabase SDK password sign-in, signup, signout and SSR session refresh, with a protected workspace and server-side user verification. Signup supersedes the initial provisioned-account-only assumption at the user's explicit request. Hosted read-only settings show signup enabled and email confirmation required; no configuration push or account/email creation was performed by this tooling.
+- Added 15 Auth/credential unit tests (51 total) and evolved Playwright into two Auth journeys with a local test-only HTTP fixture. App code always uses the real Supabase SDK; no mock-auth cookie or production bypass exists. Fixture sessions exercise refresh/reload/signout, but are not proof of every hosted Auth configuration. The user separately supplied a real signed-in workspace screenshot.
+- Initial browser testing conflicted with the user's running dev server. Isolated E2E output/config preserves that server. Dev HMR/navigation also reset signup inputs before a request; production-mode E2E passed that behavior. Auth controls wait for hydration before becoming interactive. Corrected an ambiguous alert selector that also matched Next.js's route announcer.
+- A user hydration warning showed an extra browser-extension attribute on body; source inspection found no such attribute. Did not add suppression. User reported the warning resolved.
+- Verification: 51 Jest tests, lint, TypeScript, production builds and both Chromium Auth journeys passed; inspected the login screenshot. Search/reply workflow tests remain future work. No commits or pushes performed.
+
 ## 2026-11-26 — Phase 3 database foundation
 
 - Added versioned product tables, composite ownership/source foreign keys, deduplication constraints, per-owner RLS and safe draft-review state transitions. Ordinary users cannot write ingestion or analysis fields; future trusted server writes require a server-only privileged client plus explicit ownership checks. No new privileged key/client has been configured.

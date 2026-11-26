@@ -4,7 +4,7 @@ Find public conversations and prepare thoughtful replies for human review. Nothi
 
 ## Status
 
-Next.js foundation with TypeScript, Tailwind/shadcn, Jest and Playwright configuration. The entry page is intentionally a scaffold. Search, authentication, persistence and AI inference are not implemented yet; no API keys are needed to open it.
+Next.js foundation with Supabase Auth sign-in, sign-up, session refresh and a protected workspace. Search and reply review are not implemented yet. The homepage needs no credentials; Auth pages need the public Supabase configuration.
 
 ## Run locally
 
@@ -31,14 +31,22 @@ Jest uses Next.js's transformer and Testing Library. Unit tests cover Supabase p
 npm test -- --runInBand
 ```
 
-Playwright currently contains one entry-page smoke test, not the full product journey:
+Playwright has two Auth journeys: public navigation/protection, sign-up confirmation and invalid login; and successful login, refresh, reload and sign-out. Full search/reply coverage will arrive with those features:
 
 ```sh
 npx playwright install chromium
 npm run test:e2e
 ```
 
-It starts its own Next.js server at http://127.0.0.1:3100. The reserved server-side `AI_PROVIDER=mock` setting will select deterministic inference when the AI layer is implemented; that client does not exist yet. Browser interception alone cannot mock server-to-server inference.
+It builds/starts an isolated production-mode app at http://127.0.0.1:3100 using `.next-e2e` and a local test-only Auth HTTP fixture. This exercises the real Supabase SDK/cookies without real accounts or email, and does not replace hosted Auth verification. Your dev server can keep running. The reserved server-side `AI_PROVIDER=mock` setting will select deterministic inference when that client is implemented. Browser interception alone cannot mock server-to-server inference.
+
+## Sign in and create an account
+
+Open `/login` or follow Sign in from the homepage. Create an account at `/signup`; Supabase Auth owns credentials, tokens and verification emails. With email confirmation enabled, confirm the email and return to `/login`. There is no custom password database or test-mode bypass in the app. Supabase's configured Auth throttling applies to sign-in/sign-up; per-user search/AI quotas are separate.
+
+The hosted project was checked with signup enabled and email confirmation required. Configure Supabase Auth's Site URL and allowed redirect URLs for the eventual deployment. `supabase/config.jsonc` now permits local signup too; local configuration does not automatically update hosted settings. The initial reviewer-only assumption was superseded by the user's request for signup.
+
+Protected pages verify the user on the server as well as in the session-refresh proxy. Unconfirmed or signed-out users cannot enter `/search`. The current workspace displays account status; search is next.
 
 `npm run test:integration` verifies the quota migration in a disposable PostgreSQL 17 Docker container, including real concurrent reservations and permissions. Start Docker Desktop first. The test downloads the official image if needed, exposes no ports, never accepts a hosted connection URL and removes its container afterward.
 
@@ -65,7 +73,7 @@ Give an agent one bounded task with an observable outcome. Inspect existing code
 
 ## Intended stack and journey
 
-Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one inexpensive OpenRouter model. Supabase client helpers, generated types, versioned product schema and RLS are present. Application login/session refresh, trusted ingestion/analysis writes and product inference endpoints remain to be implemented.
+Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one inexpensive OpenRouter model. Auth, generated types, product schema and RLS are present. Trusted ingestion/analysis writes and product inference endpoints remain to be implemented.
 
 Sign in → search → inspect source and contextual analysis → explicitly generate → edit → approve/reject → save and reopen.
 
@@ -77,7 +85,7 @@ Copy `.env.example` to `.env` and replace placeholders with your project URL and
 
 Run `npm run db:check` for a read-only Auth/Data API connectivity probe. The expected missing-table response confirms reachability, not table permissions, RLS, login or writes. The starter page and deterministic unit tests do not require real credentials. OpenRouter variables are reserved for the future inference feature.
 
-For migrations, follow [the database workflow](supabase/README.md): log in to the CLI, link the intended project, create versioned SQL in `supabase/migrations/`, preview with `npm run db:push:preview` and apply reviewed changes with `npm run db:push`. No schema changes through the dashboard SQL Editor. Local CLI settings do not automatically configure the hosted project. The quota and product review schema migrations have been applied; application login and trusted ingestion/analysis writes remain to be implemented.
+For migrations, follow [the database workflow](supabase/README.md): log in to the CLI, link the intended project, create versioned SQL in `supabase/migrations/`, preview with `npm run db:push:preview` and apply reviewed changes with `npm run db:push`. No schema changes through the dashboard SQL Editor. Local CLI settings do not automatically configure the hosted project. The quota and product review schema migrations have been applied; trusted ingestion/analysis writes remain to be implemented.
 
 Changes stay local unless committing or pushing is explicitly requested. Optional machine-local notes are not required to build a fresh clone. Record genuine AI assistance, mistakes and corrections in [AI_LOG.md](AI_LOG.md), which belongs in the submitted repository.
 

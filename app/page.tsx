@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-svh max-w-3xl flex-col justify-center gap-6 px-6 py-16">
@@ -12,6 +14,7 @@ export default function HomePage() {
           Search, analysis and draft review are still being built. Nothing is sent automatically.
         </p>
       </section>
+      <Link href="/login" className="w-fit rounded-lg bg-primary px-5 py-3 text-sm font-medium text-primary-foreground">Sign in</Link>
     </main>
   );
 }
