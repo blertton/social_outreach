@@ -50,7 +50,7 @@ Server helpers in `lib/security/gates.ts` verify the session, reserve persistent
 
 The prepared quota migration sets per-user limits of 10 searches/minute and 30/day, plus 20 AI attempts/minute and 100/day (UTC). Requests rejected by policy do not spend AI allowance; dispatched attempts count even if the provider fails. Each retry needs a separate reservation. Database locks coordinate across app instances; there is no in-memory-only limiter.
 
-These helpers are not yet wired into product endpoints, which do not exist. The quota migration has not been applied to the hosted project. Future routes must validate inputs/ownership, wrap external work in the appropriate helper, map GateError statuses to HTTP, and include `Retry-After` for HTTP 429. The CLI model spike is separate from authenticated app quotas and remains billable developer tooling. Request quotas do not replace the OpenRouter key's spending cap or human review.
+These helpers are not yet wired into product endpoints, which do not exist. The quota and product-schema migrations are applied to amanet, with generated SDK types. Future routes must validate inputs/ownership, wrap external work in the appropriate helper, map GateError statuses to HTTP, and include `Retry-After` for HTTP 429. The CLI model spike is separate from authenticated app quotas and remains billable developer tooling. Request quotas do not replace the OpenRouter key's spending cap or human review.
 
 ## Working with coding agents
 
@@ -65,7 +65,7 @@ Give an agent one bounded task with an observable outcome. Inspect existing code
 
 ## Intended stack and journey
 
-Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one inexpensive OpenRouter model. Supabase client helpers and CLI setup are present; application login/session refresh, tables, RLS policies and inference remain to be implemented.
+Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one inexpensive OpenRouter model. Supabase client helpers, generated types, versioned product schema and RLS are present. Application login/session refresh, trusted ingestion/analysis writes and product inference endpoints remain to be implemented.
 
 Sign in → search → inspect source and contextual analysis → explicitly generate → edit → approve/reject → save and reopen.
 
@@ -77,7 +77,7 @@ Copy `.env.example` to `.env` and replace placeholders with your project URL and
 
 Run `npm run db:check` for a read-only Auth/Data API connectivity probe. The expected missing-table response confirms reachability, not table permissions, RLS, login or writes. The starter page and deterministic unit tests do not require real credentials. OpenRouter variables are reserved for the future inference feature.
 
-For migrations, follow [the database workflow](supabase/README.md): log in to the CLI, link the intended project, create versioned SQL in `supabase/migrations/`, preview with `npm run db:push:preview` and apply reviewed changes with `npm run db:push`. No schema changes through the dashboard SQL Editor. Local CLI settings do not automatically configure the hosted project. No application migrations have been applied yet.
+For migrations, follow [the database workflow](supabase/README.md): log in to the CLI, link the intended project, create versioned SQL in `supabase/migrations/`, preview with `npm run db:push:preview` and apply reviewed changes with `npm run db:push`. No schema changes through the dashboard SQL Editor. Local CLI settings do not automatically configure the hosted project. The quota and product review schema migrations have been applied; application login and trusted ingestion/analysis writes remain to be implemented.
 
 Changes stay local unless committing or pushing is explicitly requested. Optional machine-local notes are not required to build a fresh clone. Record genuine AI assistance, mistakes and corrections in [AI_LOG.md](AI_LOG.md), which belongs in the submitted repository.
 

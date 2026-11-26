@@ -1,5 +1,13 @@
 # AI assistance log
 
+## 2026-11-26 — Phase 3 database foundation
+
+- Added versioned product tables, composite ownership/source foreign keys, deduplication constraints, per-owner RLS and safe draft-review state transitions. Ordinary users cannot write ingestion or analysis fields; future trusted server writes require a server-only privileged client plus explicit ownership checks. No new privileged key/client has been configured.
+- Expanded disposable PostgreSQL tests for product records: cross-owner links/reads/edits denied, duplicate posts rejected, forged analysis denied, edits clear prior review metadata, and deleting source posts cascades through result snapshots/drafts.
+- After local tests and hosted dry-run review, applied 20261126220000_usage_limits and 20261126230000_review_schema to the linked amanet project through the CLI. Local/remote migration history matches. Read-only hosted grant checks confirm anonymous reservation is denied and authenticated analysis updates are denied.
+- Generated public-schema TypeScript types and connected the browser/server SDK helpers to them. Verified 36 unit tests, integration SQL tests, lint, TypeScript and production build. No application login, search UI, real-source ingestion or draft endpoint is implemented yet.
+- Updated the local phase tracker without checking off outstanding model grounding or deployed-source checks. No commits or pushes were performed.
+
 ## 2026-11-26 — User-selected quota adjustment
 
 - Updated the unapplied migration to the user's exact limits: searches 10/minute and 30/day; AI attempts 20/minute and 100/day. Updated tests, README and local planning/tracking notes to match; did not use a multiplication formula from the interrupted request.

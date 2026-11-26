@@ -9,9 +9,11 @@ The Supabase CLI is a project dev dependency. Version 3 uses config.jsonc and re
 3. Create a migration with `npm run db:migration -- descriptive_name`; review the SQL in migrations/.
 4. Preview hosted changes with `npm run db:push:preview`, then apply reviewed changes with `npm run db:push`.
 
-The first prepared migration adds usage counters and the atomic reserve_usage function. It has not been applied to the hosted project. Product tables/ownership policies are still pending. Do not run database reset against hosted reviewer data.
+Two versioned migrations are applied to amanet: usage counters/atomic reservation and the product review schema (searches, posts, results and drafts). Local/remote migration history was verified. Do not run database reset against hosted reviewer data.
 
-Run `npm run test:integration` with Docker Desktop running to test that migration in a disposable PostgreSQL container. It checks anonymous/direct-write denial, row isolation, daily limits and concurrent reservations without touching the linked project. Fixed limits can only be changed through a reviewed migration, not by a request parameter. No application route is protected until it uses the server gate before external work.
+RLS limits users to their own records. Composite foreign keys enforce ownership/source consistency; ordinary users cannot insert or modify source/analysis records. Ingestion/model writes need a trusted server-only client with explicit ownership checks, not a browser client or public key. That privileged client is not implemented yet. Authenticated users can update only their own draft text/status; a trigger maintains review timestamps and clears decisions after edits. No service-role credential is stored in the schema/type files.
+
+Run `npm run test:integration` with Docker Desktop running to test both migrations in a disposable PostgreSQL container. It checks quota concurrency, ownership/RLS, protected AI fields, deduplication, draft transitions and deletion cascades without touching the linked project. Fixed limits can only be changed through a reviewed migration, not by a request parameter. No application route is protected until it uses the server gate before external work.
 
 Version config.jsonc and migrations; keep generated connection metadata, .temp and credentials ignored. Access to the Data API with a public key does not authorize CLI migration operations; the CLI requires separate account authorization.
 

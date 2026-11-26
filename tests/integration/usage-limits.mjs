@@ -24,7 +24,8 @@ try {
     try { docker(["exec", container, "pg_isready", "-U", "postgres"]); ready = true; break; } catch { await new Promise((r) => setTimeout(r, 500)); }
   }
   assert.ok(ready, "Disposable PostgreSQL did not become ready.");
-  sql(`create role anon; create role authenticated; create schema auth;
+  sql(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
+    grant usage on schema auth to authenticated;
     create table auth.users(id uuid primary key);
     insert into auth.users values ('${owner}'), ('${other}');
     create function auth.uid() returns uuid language sql stable as $$
@@ -72,6 +73,9 @@ try {
     ('${owner}', 'ai', 'minute', date_trunc('minute', now()) - interval '2 minutes', 20);`);
   assert.equal(JSON.parse(sql(asUser(reserve()))).allowed, true);
   console.log("Expired minute/day buckets do not block a fresh reservation. All SQL checks passed.");
+  sql(readFileSync(new URL("../../supabase/migrations/20261126230000_review_schema.sql", import.meta.url), "utf8"));
+  sql(readFileSync(new URL("./review-schema.sql", import.meta.url), "utf8"));
+  console.log("Review schema: dedupe, cross-owner constraints/RLS, protected AI fields, review-state resets and deletion cascades passed.");
 } finally {
   if (container && /^[a-f0-9]{64}$/.test(container)) docker(["rm", "-f", container]);
 }
