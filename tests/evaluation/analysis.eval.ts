@@ -31,6 +31,16 @@ test.each(examples)("synthetic contextual analysis: $id", async (example) => {
   if (example.sensitivity === "bereavement") expect(mode).toBe("condolence");
 }, 30_000);
 
+// Regression from a real search: a nostalgic aside was classified as a relevant
+// first-home event and then drafted as "Congratulations on buying your first house".
+test("synthetic contextual analysis: passing memory is not a current life event", async () => {
+  const text = "My parents never had central heating, and my wife and I didnt have it in our first home either. I have never tasted pesto either, what's it like?";
+  const result = await analyzePost({ id: randomUUID(), query: "buying our first house, first time homebuyers, we bought a house", text, source: "fixtures" });
+  observations.push({ id: "nostalgia", text, ...result });
+  expect(["irrelevant", "uncertain"]).toContain(result.analysis.relevance);
+  expect(draftMode({ status: "complete", ...result.analysis })).toBe("blocked");
+}, 30_000);
+
 afterAll(() => {
   mkdirSync("tmp", { recursive: true });
   writeFileSync("tmp/analysis-evaluation.json", JSON.stringify({ date: new Date().toISOString(), syntheticOnly: true,

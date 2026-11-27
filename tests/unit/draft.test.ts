@@ -41,12 +41,18 @@ test.each([
   ["standard", "Congrats @someone, see https://example.test"],
   ["standard", "Congratulations! #newbaby"],
   ["standard", "Policies from $9 a month — act now"],
-  ["standard", "x".repeat(301)],
   ["condolence", "I'm so sorry. When you're ready, Amanet can help with life insurance."],
   ["condolence", "So sorry for your loss. Feel free to reach out to us."],
 ] as const)("rejects %s output that breaks the reply policy: %s", async (mode, reply) => {
   fetchMock.mockResolvedValue(response(reply));
   await expect(draftReply({ ...input, mode })).rejects.toThrow("A reply could not be generated.");
+});
+
+test("an over-long but otherwise valid reply is kept for the reviewer to shorten", async () => {
+  // Regression: a real 307-character reply was discarded with a generic error.
+  const long = "Congratulations on the news! ".repeat(11).trim();
+  fetchMock.mockResolvedValue(response(long));
+  expect((await draftReply(input)).text).toBe(long);
 });
 
 test("valid JSON with an empty, truncated or extra-field reply fails closed without echoing provider text", async () => {
