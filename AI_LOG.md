@@ -1,5 +1,9 @@
 # AI assistance log
 
+## 2026-11-27 — Review corrections: draft transitions, batch analysis and README
+
+- Reproduced the reported database bug with a disposable SQL regression: editing a rejected draft while approving it lost the decision. Added a new migration rather than modifying applied history. The trigger now preserves an explicitly changed status when saving text/status together; text-only edits still reset stale decisions and review metadata. SQL cases cover edit-and-approve, edit-and-reject and subsequent text-only reset. Reapproving an edited already-approved draft with the same status remains an explicit-action contract for the future transactional draft-save RPC, documented in the database workflow.
+
 ## 2026-11-27 — Plain-text search phrases
 
 - The user identified unnecessary quotation syntax in the editable search field. The backend already formats comma-separated alternatives as phrase queries; AI additions were unnecessarily inserting visible quotes and the help text encouraged users to manage them.

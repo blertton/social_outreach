@@ -53,6 +53,27 @@ do $$ begin
     then raise exception 'Editing did not reset review'; end if;
 end $$;
 reset role;
+-- An explicit changed decision must survive saving edited text together.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-4000-8000-000000000001';
+update public.drafts set status='rejected';
+update public.drafts set text='Edited rejected reply', status='approved';
+do $$ begin
+  if not exists (select 1 from public.drafts where text='Edited rejected reply' and status='approved'
+    and reviewed_at is not null and reviewed_by=auth.uid()) then raise exception 'Edit-and-approve lost its decision'; end if;
+end $$;
+update public.drafts set text='Edited approved reply', status='rejected';
+do $$ begin
+  if not exists (select 1 from public.drafts where status='rejected' and reviewed_by=auth.uid())
+    then raise exception 'Edit-and-reject lost its decision'; end if;
+end $$;
+update public.drafts set text='Changed without a new decision';
+do $$ begin
+  if not exists (select 1 from public.drafts where status='draft' and reviewed_at is null and reviewed_by is null)
+    then raise exception 'Text-only edit retained a stale review'; end if;
+end $$;
+reset role;
+
 delete from public.posts;
 do $$ begin
   if exists (select 1 from public.search_results) or exists (select 1 from public.drafts)
