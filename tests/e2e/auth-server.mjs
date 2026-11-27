@@ -7,7 +7,7 @@ const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated",
   app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
 const tokens = new Set();
 let refreshCount = 0;
-const searches = []; const posts = []; const results = [];
+const searches = []; const posts = []; const results = []; const drafts = [];
 const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
 function session(short) {
   const expires = Math.floor(Date.now() / 1000) + (short ? 1 : 3600);
@@ -77,6 +77,28 @@ http.createServer(async (req, res) => {
       });
       return reply(200, id);
     }
+    // Mirrors the trusted upsert used after the draft gate (see draft-review.sql for real SQL).
+    if (req.method === "POST" && url.pathname === "/rest/v1/drafts" && trusted) {
+      let raw = ""; for await (const chunk of req) raw += chunk;
+      const input = JSON.parse(raw);
+      const result = results.find((r) => r.id === input.search_result_id && r.user_id === input.user_id);
+      if (!result) return reply(409, { code: "23503", message: "Foreign key violation" });
+      let draft = drafts.find((d) => d.search_result_id === input.search_result_id);
+      if (!draft) { draft = { id: crypto.randomUUID() }; drafts.push(draft); }
+      Object.assign(draft, input, { status: "draft", reviewed_at: null, updated_at: new Date().toISOString() });
+      return req.headers.accept?.includes("vnd.pgrst.object") ? reply(201, draft) : reply(201, [draft]);
+    }
+    // Mirrors save_draft_review: owner-only; a text change clears the decision first.
+    if (url.pathname === "/rest/v1/rpc/save_draft_review" && !trusted) {
+      let raw = ""; for await (const chunk of req) raw += chunk;
+      const input = JSON.parse(raw);
+      const draft = drafts.find((d) => d.id === input.p_draft_id && d.user_id === user.id);
+      if (!draft) return reply(400, { code: "P0002", message: "Draft unavailable" });
+      if (draft.text !== input.p_text) Object.assign(draft, { text: input.p_text, status: "draft", reviewed_at: null });
+      if (draft.status !== input.p_status) Object.assign(draft, { status: input.p_status,
+        reviewed_at: input.p_status === "draft" ? null : new Date().toISOString() });
+      return reply(200, [{ draft_status: draft.status, draft_text: draft.text, reviewed_at: draft.reviewed_at, updated_at: new Date().toISOString() }]);
+    }
     if (req.method === "PATCH" && url.pathname === "/rest/v1/search_results" && trusted) {
       let raw = ""; for await (const chunk of req) raw += chunk;
       const updates = JSON.parse(raw);
@@ -90,7 +112,7 @@ http.createServer(async (req, res) => {
       return reply(200, changed);
     }
     if (req.method === "GET") {
-      let data = ({ searches, posts, search_results: results })[url.pathname.split("/").at(-1)];
+      let data = ({ searches, posts, search_results: results, drafts })[url.pathname.split("/").at(-1)];
       if (!data) return reply(404, {});
       data = data.filter((row) => row.user_id === user.id);
       for (const [field, filter] of url.searchParams) {

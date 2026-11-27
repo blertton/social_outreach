@@ -83,6 +83,9 @@ try {
   sql(readFileSync(new URL("../../supabase/migrations/20261127100100_save_analysis_batch.sql", import.meta.url), "utf8"));
   sql(readFileSync(new URL("./analysis-batch.sql", import.meta.url), "utf8"));
   console.log("Analysis batches: atomic validation/save, ownership, browser denial and completed-result reuse passed.");
+  sql(readFileSync(new URL("../../supabase/migrations/20261127120000_draft_review.sql", import.meta.url), "utf8"));
+  sql(readFileSync(new URL("./draft-review.sql", import.meta.url), "utf8"));
+  console.log("Draft review: owner-only saves, explicit edit-and-reapprove, decision resets, no-op saves and protected kind passed.");
 } finally {
   if (container && /^[a-f0-9]{64}$/.test(container)) docker(["rm", "-f", container]);
 }

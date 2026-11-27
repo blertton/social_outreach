@@ -65,7 +65,9 @@ test("bereavement analysis permits condolences only, without a commercial invita
   await first.getByRole("button", { name: "Analyze post", exact: true }).click();
   await expect(first.getByText("Condolence only — no commercial outreach", { exact: true })).toBeVisible();
   await expect(first.getByText("Bereavement", { exact: true })).toBeVisible();
-  await expect(first.getByRole("button", { name: /generate/i })).toHaveCount(0);
+  // Only the dedicated condolence path is offered; never the standard reply.
+  await expect(first.getByRole("button", { name: "Generate reply", exact: true })).toHaveCount(0);
+  await expect(first.getByRole("button", { name: "Generate condolence message", exact: true })).toBeVisible();
 });
 
 test("analysis API rejects signed-out, cross-origin and forged decisions", async ({ request }) => {

@@ -6,6 +6,8 @@ import { readSavedAnalysis } from "@/lib/ai/analysis-schema";
 import { AnalysisPanel } from "./analysis-panel";
 import { blueskyPostUrl } from "@/lib/sources/urls";
 import { BatchAnalysis } from "./batch-analysis";
+import { DraftEditor } from "./draft-editor";
+import { draftMode } from "@/lib/ai/eligibility";
 
 export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,6 +24,12 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
     : { data: [], error: null };
   if (postError) throw new Error("Source posts are temporarily unavailable.");
   const byId = new Map((posts ?? []).map((p) => [p.id, p]));
+  const resultIds = (results ?? []).map((r) => r.id);
+  const { data: drafts, error: draftError } = resultIds.length
+    ? await client.from("drafts").select("id,search_result_id,text,status,kind,model,reviewed_at").in("search_result_id", resultIds).eq("user_id", user.id)
+    : { data: [], error: null };
+  if (draftError) throw new Error("Saved replies are temporarily unavailable.");
+  const draftsByResult = new Map((drafts ?? []).map((d) => [d.search_result_id, d]));
   const reviewed = (results ?? []).map((result) => ({ result,
     analysis: result.analysis_status === "complete" ? readSavedAnalysis(result.analysis, result.source_text_snapshot) : null }));
   const visible = reviewed.filter((r) => r.analysis?.relevance !== "irrelevant")
@@ -30,13 +38,18 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
   function renderResult({ result, analysis }: typeof reviewed[number]) {
     const post = byId.get(result.post_id);
     const originalUrl = post?.source === "bluesky" ? blueskyPostUrl(post.external_id, post.author_id) : null;
-    return <article key={result.id} className="rounded-xl border p-6">
+    // Same server policy the draft route enforces; the UI only mirrors it.
+    const mode = analysis ? draftMode({ status: "complete", ...analysis }) : "blocked";
+    const saved = draftsByResult.get(result.id);
+    return <article key={result.id} data-result-id={result.id} className="rounded-xl border p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>@{post?.author_handle ?? "Unavailable author"}</span>
         {post && <time dateTime={post.posted_at}>{new Date(post.posted_at).toISOString().slice(0, 10)}</time>}
       </div>
       <p className="my-5 whitespace-pre-wrap break-words leading-relaxed">{result.source_text_snapshot}</p>
       <AnalysisPanel resultId={result.id} status={result.analysis_status} model={result.analysis_model} analysis={analysis} />
+      {mode !== "blocked" && <DraftEditor resultId={result.id} mode={mode} initialDraft={saved ? {
+        id: saved.id, text: saved.text, status: saved.status, kind: saved.kind, model: saved.model, reviewed_at: saved.reviewed_at } : null} />}
       {originalUrl && <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline underline-offset-4">View original post</a>}
     </article>;
   }

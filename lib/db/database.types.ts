@@ -17,6 +17,7 @@ export type Database = {
       drafts: {
         Row: {
           id: string
+          kind: string
           model: string
           prompt_version: string
           reviewed_at: string | null
@@ -29,6 +30,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          kind?: string
           model: string
           prompt_version: string
           reviewed_at?: string | null
@@ -41,6 +43,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          kind?: string
           model?: string
           prompt_version?: string
           reviewed_at?: string | null
@@ -239,6 +242,15 @@ export type Database = {
           p_user_id: string
         }
         Returns: number
+      }
+      save_draft_review: {
+        Args: { p_draft_id: string; p_status: string; p_text: string }
+        Returns: {
+          draft_status: string
+          draft_text: string
+          reviewed_at: string
+          updated_at: string
+        }[]
       }
       save_search: {
         Args: {

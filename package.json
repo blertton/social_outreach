@@ -23,6 +23,7 @@
     "eval:analysis": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/analysis.eval.ts",
     "eval:batch": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/batch.eval.ts",
     "eval:search": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/search.eval.ts",
+    "eval:drafts": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/draft.eval.ts",
     "db:login": "supabase login",
     "db:link": "supabase link",
     "db:migration": "supabase migration new",

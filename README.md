@@ -4,7 +4,7 @@ Find public conversations and prepare thoughtful replies for human review. Nothi
 
 ## Status
 
-Supabase Auth, keyword search, optional AI phrase suggestions and contextual analysis work. Signed-in users can enter any topic, search public Bluesky posts or labelled synthetic samples, and choose individual posts or all remaining posts for analysis. Opening or reloading results makes no analysis calls. Reply generation and the saved review workflow are the next implementation milestone.
+Supabase Auth, keyword search, optional AI phrase suggestions and contextual analysis work. Signed-in users can enter any topic, search public Bluesky posts or labelled synthetic samples, and choose individual posts or all remaining posts for analysis. Opening or reloading results makes no analysis calls. For eligible posts a reviewer can generate a reply on request, edit it, and save, approve or reject it; the decision survives a reload. Nothing is ever posted or sent.
 
 ## Run locally
 
@@ -31,7 +31,7 @@ Jest uses Next.js's transformer and Testing Library. Unit tests cover Supabase p
 npm test -- --runInBand
 ```
 
-Playwright covers signup confirmation, invalid login, sessions, saved-result reload, empty results, throttling/retry guidance, explicit source fallback, duplicate submissions, access control, freeform keywords, optional AI suggestions, plain phrase alternatives, refinement and original-post links. Analysis scenarios verify zero calls before opting in, individual-post selection, four sequential calls when choosing all 20 posts, cached reloads, failure recovery, relevant-first ordering, collapsed unrelated results, sensitivity handling and mobile layout. Reply review tests will arrive with that feature:
+Playwright covers signup confirmation, invalid login, sessions, saved-result reload, empty results, throttling/retry guidance, explicit source fallback, duplicate submissions, access control, freeform keywords, optional AI suggestions, plain phrase alternatives, refinement and original-post links. Analysis scenarios verify zero calls before opting in, individual-post selection, four sequential calls when choosing all 20 posts, cached reloads, failure recovery, relevant-first ordering, collapsed unrelated results, sensitivity handling and mobile layout. Review scenarios cover generate → edit → approve → reload, edits clearing an approval, rejection, confirmation before regenerating over edits, condolence-only drafts for bereavement, no controls (and a server 403) for uncertain results, generation failure and retry, and API boundary checks:
 
 ```sh
 npx playwright install chromium
@@ -64,7 +64,15 @@ Each request sends only the saved query and selected immutable post texts/result
 
 Analysis belongs to the query-specific search result. The same post in another search has independent analysis; completed results are reused without another quota reservation or inference call. Failures stay distinct from irrelevance. Completed results remain stable; there is no regeneration control yet.
 
-AI assessments require human checking. Relevant ordinary discussions permit standard drafting; bereavement permits only noncommercial condolences; other sensitive, irrelevant or uncertain results block drafting through the shared policy. Draft controls are not implemented yet. Evidence matching validates an excerpt, not the truth of the explanation or resistance to every injection attack. No financial-need scoring or personal profiles are created.
+AI assessments require human checking. Relevant ordinary discussions permit standard drafting; bereavement permits only noncommercial condolences; other sensitive, irrelevant or uncertain results block drafting through the shared policy. Evidence matching validates an excerpt, not the truth of the explanation or resistance to every injection attack. No financial-need scoring or personal profiles are created.
+
+### Replies and review
+
+**Generate reply** (or **Generate condolence message** for bereavement) appears only on posts the server policy allows, and makes one AI request. The server reloads the saved analysis and decides the mode itself; the request carries only the result ID, so a browser cannot pick a mode, supply text or skip the policy. Only the saved query and post text are sent to the model — no handle, profile, link or analysis. The two modes use separate prompts (`lib/ai/draft.ts`); the condolence prompt forbids any mention of insurance, Amanet, products, offers or follow-up.
+
+Model output is checked before it is saved. Replies with links, @mentions, hashtags, prices, sales-pressure phrases or more than 300 characters (Bluesky's limit) are rejected, and condolences are also rejected for commercial words. This catches concrete policy breaks, not inaccuracy or a poor tone, so a person reviews every draft.
+
+The editor sits under the original post and shows the status, unsaved changes and a character count. **Save draft**, **Approve** and **Reject** save the text and decision together; editing approved or rejected text and saving it as a draft clears the decision. Approval needs 300 characters or fewer. **Regenerate** asks before replacing edited or reviewed text, and the server refuses to replace an existing draft without that confirmation. After approval, **Copy reply** copies the text for the reviewer to post themselves. Approval only records a decision; the app has no posting or messaging code or credentials.
 
 Trusted ingestion requires `SUPABASE_SECRET_KEY` in ignored `.env`; obtain the server secret key for the same project and never prefix it with NEXT_PUBLIC. The privileged client is server-only, reached only after session verification/quota reservation. The database RPC is executable only by the privileged role and saves the complete search atomically. Record reads use the user's session and RLS.
 
@@ -84,9 +92,9 @@ Optional live smoke check, with your local dev server running: `npm run smoke:se
 
 Server helpers in `lib/security/gates.ts` verify the session, reserve persistent quota before external work, and fail closed if quota checks fail. The draft helper also requires an owned result and completed relevant analysis, selects a dedicated condolence mode for bereavement, and blocks other sensitive/uncertain cases. Load ownership/analysis from the database, never from a request body's assertions.
 
-The quota migration sets per-account limits of 10 searches/minute and 30/day, plus 20 AI attempts/minute and 100/day (UTC). Each analysis batch counts as one attempt; optional phrase suggestions and future drafting share that allowance. Requests rejected by policy do not spend AI allowance; dispatched attempts count even if the provider fails. Each retry needs a separate reservation. Database locks coordinate across app instances; there is no in-memory-only limiter. The daily AI allowance can be exhausted before the search allowance.
+The quota migration sets per-account limits of 10 searches/minute and 30/day, plus 20 AI attempts/minute and 100/day (UTC). Each analysis batch counts as one attempt; optional phrase suggestions and each generated reply share that allowance. Saving, approving and rejecting use no allowance. Requests rejected by policy do not spend AI allowance; dispatched attempts count even if the provider fails. Each retry needs a separate reservation. Database locks coordinate across app instances; there is no in-memory-only limiter. The daily AI allowance can be exhausted before the search allowance.
 
-Search, phrase-suggestion and analysis APIs validate origin/input/body size, verify the session and reserve quota before external calls. Analysis loads ownership and the query under session RLS before reservation. The UI shows Retry-After guidance and preserves source text on failure. Inference uses a shared bounded OpenRouter helper with a 20-second deadline, structured validation, no automatic retries and no model fallback. The privileged-only `save_analysis_batch` function validates ownership/evidence for every member, saves at most five together, and never overwrites completed analysis. Simultaneous requests from separate tabs can still spend more than one allowance before the first save. Drafting must use its prepared gate when added. CLI evaluations bypass authenticated app quotas and remain billable developer tooling. Request quotas do not replace the OpenRouter key's spending cap or human review.
+Search, phrase-suggestion and analysis APIs validate origin/input/body size, verify the session and reserve quota before external calls. Analysis loads ownership and the query under session RLS before reservation. The UI shows Retry-After guidance and preserves source text on failure. Inference uses a shared bounded OpenRouter helper with a 20-second deadline, structured validation, no automatic retries and no model fallback. The privileged-only `save_analysis_batch` function validates ownership/evidence for every member, saves at most five together, and never overwrites completed analysis. Simultaneous requests from separate tabs can still spend more than one allowance before the first save. The draft route uses the same gate: it checks ownership and eligibility before reserving one AI attempt. Generated drafts are saved by the server-only client; review saves use the user's own session through `save_draft_review`. CLI evaluations bypass authenticated app quotas and remain billable developer tooling. Request quotas do not replace the OpenRouter key's spending cap or human review.
 
 ## Working with coding agents
 
@@ -101,7 +109,7 @@ Give an agent one bounded task with an observable outcome. Inspect existing code
 
 ## Intended stack and journey
 
-Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one configured OpenRouter model. Auth, search ingestion, contextual analysis, generated types, product schema and RLS are present. Reply generation and review remain to be implemented.
+Next.js App Router, TypeScript, Tailwind/shadcn, Supabase PostgreSQL/Auth using its SDK, and one configured OpenRouter model. Auth, search ingestion, contextual analysis, reply generation and review, generated types, product schema and RLS are present.
 
 Sign in → search → inspect source and contextual analysis → explicitly generate → edit → approve/reject → save and reopen.
 
@@ -127,6 +135,6 @@ AI assistance, evaluation findings, mistakes and corrections are documented in [
 
 ## Assumptions and remaining work
 
-Assumptions are public English posts, Bluesky-only retrieval and human review. No clarification questions were submitted during the assessment. The core reply-generation/review journey remains the next milestone; further search enhancements are deferred until it works end to end.
+Assumptions are public English posts, Bluesky-only retrieval and human review. No clarification questions were submitted during the assessment. The core journey works end to end locally; deployment and broader reply-quality evaluation are next.
 
 Before public deployment, verify hosting/platform requirements, configure Auth redirects and publish a content-deletion contact. An operator can remove canonical posts and their dependent snapshots, analyses and drafts; a deletion request must cover owner copies across accounts. There are no scheduled monitoring, cleanup or keep-alive jobs. The submission also requires the short demo and technical write-up.
