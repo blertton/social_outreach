@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useUnsavedChanges } from "@/components/unsaved-changes";
 import { Check, CircleAlert, Copy, LoaderCircle, RefreshCw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-export type SavedDraft = { id: string; text: string; status: string; kind: string; model: string; reviewed_at: string | null };
+export type SavedDraft = { id: string; text: string; status: string; kind: string; model: string; reviewed_at: string | null; updated_at: string };
 type Status = "draft" | "approved" | "rejected";
 
 const REPLY_LIMIT = 300;
@@ -26,6 +28,7 @@ async function readError(response: Response, fallback: string) {
 export function DraftEditor({ resultId, mode, initialDraft }: {
   resultId: string; mode: "standard" | "condolence"; initialDraft: SavedDraft | null;
 }) {
+  const router = useRouter();
   const [draft, setDraft] = useState(initialDraft);
   const [text, setText] = useState(initialDraft?.text ?? "");
   const [pending, setPending] = useState<"" | "generate" | Status>("");
@@ -36,12 +39,7 @@ export function DraftEditor({ resultId, mode, initialDraft }: {
   const count = length(text);
   const label = mode === "condolence" ? "Condolence draft" : "Reply draft";
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  useUnsavedChanges(resultId, dirty);
 
   async function generate() {
     if (busy.current) return;
@@ -51,10 +49,11 @@ export function DraftEditor({ resultId, mode, initialDraft }: {
     busy.current = true; setPending("generate"); setError(""); setNotice("");
     try {
       const response = await fetch("/api/drafts", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resultId, ...(replace ? { replace: true } : {}) }), signal: AbortSignal.timeout(65_000) });
+        body: JSON.stringify({ resultId, ...(replace ? { replace: true, expectedUpdatedAt: draft.updated_at } : {}) }), signal: AbortSignal.timeout(65_000) });
       if (!response.ok) throw new Error(await readError(response, "A reply could not be generated. Please retry."));
       const { draft: saved } = await response.json() as { draft: SavedDraft };
       setDraft(saved); setText(saved.text);
+      router.refresh();
     } catch (failure) {
       setError(failure instanceof Error && failure.name === "Error" ? failure.message : "A reply could not be generated. Please retry.");
     } finally { busy.current = false; setPending(""); }
@@ -67,8 +66,9 @@ export function DraftEditor({ resultId, mode, initialDraft }: {
       const response = await fetch(`/api/drafts/${draft.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, status }), signal: AbortSignal.timeout(20_000) });
       if (!response.ok) throw new Error(await readError(response, "Your reply could not be saved. Your text is still here; please retry."));
-      const { draft: saved } = await response.json() as { draft: Pick<SavedDraft, "text" | "status" | "reviewed_at"> };
+      const { draft: saved } = await response.json() as { draft: Pick<SavedDraft, "text" | "status" | "reviewed_at" | "updated_at"> };
       setDraft({ ...draft, ...saved }); setText(saved.text);
+      router.refresh();
       setNotice(status === "approved" ? "Approved. Copy the reply and post it yourself — nothing is sent automatically." : "Saved.");
     } catch (failure) {
       setError(failure instanceof Error && failure.name === "Error" ? failure.message : "Your reply could not be saved. Your text is still here; please retry.");
@@ -103,7 +103,7 @@ export function DraftEditor({ resultId, mode, initialDraft }: {
         rows={5} maxLength={5000} disabled={!!pending} aria-describedby={`draft-meta-${resultId}`}
         className={`w-full resize-y rounded-lg border bg-card p-3 leading-relaxed outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 ${over ? "border-destructive" : ""}`} />
       <div id={`draft-meta-${resultId}`} className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-        <span>{dirty ? <span className="font-medium text-amber-700 dark:text-amber-300">Unsaved changes</span> : draft.reviewed_at ? `Reviewed ${new Date(draft.reviewed_at).toLocaleString()}` : "Not reviewed yet"}</span>
+        <span>{dirty ? <span className="font-medium text-amber-700 dark:text-amber-300">Unsaved changes</span> : draft.reviewed_at ? <time data-review-time dateTime={draft.reviewed_at}>Reviewed {new Date(draft.reviewed_at).toISOString().slice(0, 19).replace("T", " ")} UTC</time> : "Not reviewed yet"}</span>
         <span className={over ? "font-medium text-destructive" : ""}>{over ? `${count} / ${REPLY_LIMIT} — shorten to approve` : `${count} / ${REPLY_LIMIT}`}</span>
       </div>
     </div>}

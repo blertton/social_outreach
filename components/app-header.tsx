@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { GuardedLink as Link, GuardedForm } from "@/components/unsaved-changes";
 import { signOut } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 
@@ -14,7 +14,7 @@ export function AppHeader({ email }: { email?: string | null }) {
       </div>
       <div className="flex min-w-0 items-center gap-4">
         {email && <span className="hidden truncate text-sm text-muted-foreground md:inline">Signed in as {email}</span>}
-        <form action={signOut}><Button variant="outline" type="submit">Sign out</Button></form>
+        <GuardedForm action={signOut}><Button variant="outline" type="submit">Sign out</Button></GuardedForm>
       </div>
     </div>
   </header>;

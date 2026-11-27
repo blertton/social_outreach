@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { GuardedLink as Link, UnsavedChangesProvider } from "@/components/unsaved-changes";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireReviewer } from "@/lib/auth/session";
@@ -28,7 +28,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
   const byId = new Map((posts ?? []).map((p) => [p.id, p]));
   const resultIds = (results ?? []).map((r) => r.id);
   const { data: drafts, error: draftError } = resultIds.length
-    ? await client.from("drafts").select("id,search_result_id,text,status,kind,model,reviewed_at").in("search_result_id", resultIds).eq("user_id", user.id)
+    ? await client.from("drafts").select("id,search_result_id,text,status,kind,model,reviewed_at,updated_at").in("search_result_id", resultIds).eq("user_id", user.id)
     : { data: [], error: null };
   if (draftError) throw new Error("Saved replies are temporarily unavailable.");
   const draftsByResult = new Map((drafts ?? []).map((d) => [d.search_result_id, d]));
@@ -66,7 +66,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
       </div>
       <div className="min-w-0 border-t bg-muted/40 p-5 sm:p-6 lg:border-t-0 lg:border-l">
         {mode !== "blocked" ? <DraftEditor resultId={result.id} mode={mode} initialDraft={saved ? {
-          id: saved.id, text: saved.text, status: saved.status, kind: saved.kind, model: saved.model, reviewed_at: saved.reviewed_at } : null} />
+          id: saved.id, text: saved.text, status: saved.status, kind: saved.kind, model: saved.model, reviewed_at: saved.reviewed_at, updated_at: saved.updated_at } : null} />
           : <div className="flex h-full min-h-24 flex-col justify-center gap-1 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">{analysis ? "No reply suggested" : "Reply waits for analysis"}</p>
             <p className="leading-relaxed">{analysis ? "This post is not a clear, non-sensitive match for your search, so no reply is drafted. Any response is left to your judgement." : "Analyze this post to see whether a reply fits."}</p>
@@ -75,7 +75,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
     </article>;
   }
   const sourceLabel = search.source === "fixtures" ? "Sample data — synthetic examples" : "Bluesky — public posts";
-  return <>
+  return <UnsavedChangesProvider>
     <AppHeader email={user.email} />
     <main className="mx-auto max-w-360 px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
@@ -104,5 +104,5 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         </details>}
       </BatchAnalysis>}
     </main>
-  </>;
+  </UnsavedChangesProvider>;
 }

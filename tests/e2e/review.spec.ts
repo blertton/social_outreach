@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const origin = { Origin: "http://127.0.0.1:3100" };
+test.use({ timezoneId: "Pacific/Honolulu", locale: "en-GB" });
 
 async function signIn(page: Page) {
   await page.goto("/login");
@@ -120,4 +121,68 @@ test("draft APIs reject signed-out, cross-origin and forged requests", async ({ 
   expect((await request.post("/api/drafts", { data: { resultId, mode: "standard", text: "forged" }, headers: origin })).status()).toBe(400);
   expect((await request.patch(`/api/drafts/${resultId}`, { data: { text: "x", status: "approved" }, headers: origin })).status()).toBe(401);
   expect((await request.patch(`/api/drafts/${resultId}`, { data: { text: "x", status: "published" }, headers: origin })).status()).toBe(400);
+});
+
+test("leaving a result with unsaved edits requires confirmation; saving removes the warning", async ({ page }) => {
+  const card = await analyzedSample(page, "daughter");
+  await card.getByRole("button", { name: "Generate reply", exact: true }).click();
+  const editor = card.getByLabel("Reply draft", { exact: true });
+  await expect(editor).toHaveValue(/Simulated reply/);
+  await editor.fill("Keep my unsaved reply.");
+  const resultsUrl = page.url();
+  let warnings = 0;
+  page.on("dialog", async (dialog) => { warnings++; await dialog.dismiss(); });
+  await page.getByRole("link", { name: "New search", exact: true }).click();
+  await expect(page).toHaveURL(resultsUrl);
+  await expect(editor).toHaveValue("Keep my unsaved reply.");
+  await page.getByRole("link", { name: "Refine search", exact: true }).click();
+  await expect(page).toHaveURL(resultsUrl);
+  expect(warnings).toBe(2);
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(resultsUrl);
+  expect(warnings).toBe(3);
+  await card.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(card.getByText("Unsaved changes", { exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "New search", exact: true }).click();
+  await expect(page).toHaveURL(/\/search$/);
+  expect(warnings).toBe(3);
+  await page.goBack();
+  await page.getByRole("article").first().getByLabel("Reply draft", { exact: true }).fill("Discard this edit explicitly.");
+  page.removeAllListeners("dialog");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("link", { name: "New search", exact: true }).click();
+  await expect(page).toHaveURL(/\/search$/);
+});
+
+test("review timestamps are stable across server and browser timezones", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-27T12:34:00Z"));
+  const errors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  const card = await analyzedSample(page, "daughter");
+  await card.getByRole("button", { name: "Generate reply", exact: true }).click();
+  await expect(card.getByLabel("Reply draft", { exact: true })).toHaveValue(/Simulated reply/);
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(card.getByText("Status: Approved", { exact: true })).toBeVisible();
+  await page.reload();
+  const timestamp = page.getByRole("article").first().locator("time[data-review-time]");
+  await expect(timestamp).toHaveText(/ UTC$/);
+  expect(errors.filter((message) => /hydrat|#418/i.test(message))).toEqual([]);
+});
+
+test("stale regeneration preserves another tab's saved review and offers reload recovery", async ({ page }) => {
+  const card = await analyzedSample(page, "daughter");
+  const generated = page.waitForResponse((response) => response.url().endsWith("/api/drafts") && response.request().method() === "POST");
+  await card.getByRole("button", { name: "Generate reply", exact: true }).click();
+  const { draft } = await (await generated).json();
+  await expect(card.getByLabel("Reply draft", { exact: true })).toHaveValue(/Simulated reply/);
+  const saved = await page.request.patch(`/api/drafts/${draft.id}`, {
+    data: { text: "This was approved in another tab.", status: "approved" }, headers: origin,
+  });
+  expect(saved.ok()).toBe(true);
+  await card.getByRole("button", { name: "Regenerate", exact: true }).click();
+  await expect(card.getByRole("alert")).toContainText("Reload to review the latest saved version");
+  await page.reload();
+  const reloaded = page.getByRole("article").first();
+  await expect(reloaded.getByLabel("Reply draft", { exact: true })).toHaveValue("This was approved in another tab.");
+  await expect(reloaded.getByText("Status: Approved", { exact: true })).toBeVisible();
 });

@@ -76,4 +76,32 @@ do $$ begin
   exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+-- Match the trusted route's insert-only creation and conditional regeneration.
+do $$ declare stale_version timestamptz; changed integer; begin
+  select updated_at into stale_version from public.drafts where id='41000000-0000-4000-8000-000000000001';
+  update public.drafts set text='Keep the reviewed reply', status='approved'
+    where id='41000000-0000-4000-8000-000000000001';
+  update public.drafts set text='Late model output', status='draft'
+    where id='41000000-0000-4000-8000-000000000001' and user_id='00000000-0000-4000-8000-000000000001'
+      and updated_at=stale_version;
+  get diagnostics changed = row_count;
+  if changed <> 0 then raise exception 'Stale generation overwrote a review'; end if;
+  begin
+    insert into public.drafts (user_id,search_result_id,text,prompt_version,model,kind)
+      values ('00000000-0000-4000-8000-000000000001','31000000-0000-4000-8000-000000000001','Late output','t','t','standard');
+    raise exception 'Duplicate generation inserted';
+  exception when unique_violation then null; end;
+  if not exists (select 1 from public.drafts where id='41000000-0000-4000-8000-000000000001'
+    and text='Keep the reviewed reply' and status='approved') then raise exception 'Review changed after conflict'; end if;
+  select updated_at into stale_version from public.drafts where id='41000000-0000-4000-8000-000000000001';
+  update public.drafts set text='Confirmed regeneration', status='draft'
+    where id='41000000-0000-4000-8000-000000000001' and updated_at=stale_version;
+  get diagnostics changed = row_count;
+  if changed <> 1 then raise exception 'Current-version regeneration failed'; end if;
+  update public.drafts set text='Second stale generation', status='draft'
+    where id='41000000-0000-4000-8000-000000000001' and updated_at=stale_version;
+  get diagnostics changed = row_count;
+  if changed <> 0 then raise exception 'Second generation reused a stale version'; end if;
+end $$;
+
 delete from public.searches where id='11000000-0000-4000-8000-000000000001';

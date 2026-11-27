@@ -77,16 +77,26 @@ http.createServer(async (req, res) => {
       });
       return reply(200, id);
     }
-    // Mirrors the trusted upsert used after the draft gate (see draft-review.sql for real SQL).
+    // Insert-only creation; uniqueness is enforced independently of the earlier read.
     if (req.method === "POST" && url.pathname === "/rest/v1/drafts" && trusted) {
       let raw = ""; for await (const chunk of req) raw += chunk;
       const input = JSON.parse(raw);
       const result = results.find((r) => r.id === input.search_result_id && r.user_id === input.user_id);
       if (!result) return reply(409, { code: "23503", message: "Foreign key violation" });
-      let draft = drafts.find((d) => d.search_result_id === input.search_result_id);
-      if (!draft) { draft = { id: crypto.randomUUID() }; drafts.push(draft); }
+      if (drafts.some((d) => d.search_result_id === input.search_result_id)) return reply(409, { code: "23505" });
+      const draft = { id: crypto.randomUUID() }; drafts.push(draft);
       Object.assign(draft, input, { status: "draft", reviewed_at: null, updated_at: new Date().toISOString() });
       return req.headers.accept?.includes("vnd.pgrst.object") ? reply(201, draft) : reply(201, [draft]);
+    }
+    // Conditional regeneration: emulate PostgREST's atomic version predicate.
+    if (req.method === "PATCH" && url.pathname === "/rest/v1/drafts" && trusted) {
+      let raw = ""; for await (const chunk of req) raw += chunk;
+      const input = JSON.parse(raw);
+      const draft = drafts.find((row) => ["id", "user_id", "updated_at"].every((field) =>
+        url.searchParams.get(field) === `eq.${row[field]}`));
+      if (!draft) return reply(200, []);
+      Object.assign(draft, input, { reviewed_at: null, updated_at: new Date().toISOString() });
+      return reply(200, [draft]);
     }
     // Mirrors save_draft_review: owner-only; a text change clears the decision first.
     if (url.pathname === "/rest/v1/rpc/save_draft_review" && !trusted) {
@@ -97,7 +107,8 @@ http.createServer(async (req, res) => {
       if (draft.text !== input.p_text) Object.assign(draft, { text: input.p_text, status: "draft", reviewed_at: null });
       if (draft.status !== input.p_status) Object.assign(draft, { status: input.p_status,
         reviewed_at: input.p_status === "draft" ? null : new Date().toISOString() });
-      return reply(200, [{ draft_status: draft.status, draft_text: draft.text, reviewed_at: draft.reviewed_at, updated_at: new Date().toISOString() }]);
+      draft.updated_at = new Date().toISOString();
+      return reply(200, [{ draft_status: draft.status, draft_text: draft.text, reviewed_at: draft.reviewed_at, updated_at: draft.updated_at }]);
     }
     if (req.method === "PATCH" && url.pathname === "/rest/v1/search_results" && trusted) {
       let raw = ""; for await (const chunk of req) raw += chunk;

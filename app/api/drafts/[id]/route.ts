@@ -28,7 +28,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/drafts/[id
     if (error?.code === "P0002") throw new GateError(404, "This draft is unavailable.");
     const row = Array.isArray(data) ? data[0] : null;
     if (error || !row) throw new Error();
-    return NextResponse.json({ draft: { id, text: row.draft_text, status: row.draft_status, reviewed_at: row.reviewed_at } }, { headers });
+    return NextResponse.json({ draft: { id, text: row.draft_text, status: row.draft_status, reviewed_at: row.reviewed_at, updated_at: row.updated_at } }, { headers });
   } catch (error) {
     if (error instanceof GateError) return NextResponse.json({ error: error.message }, { status: error.status, headers });
     return NextResponse.json({ error: "Your reply could not be saved. Your text is still here; please retry." }, { status: 503, headers });

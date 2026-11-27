@@ -14,7 +14,8 @@ const resultId = "00000000-0000-4000-8000-000000000010";
 const draftId = "00000000-0000-4000-8000-000000000020";
 const text = "Our daughter arrived yesterday.";
 const analysis = (overrides = {}) => ({ relevance: "relevant", sensitivity: "none", reason: "A birth announcement.", evidence: text, ...overrides });
-const getUser = jest.fn(), rpc = jest.fn(), upsert = jest.fn(), single = jest.fn();
+const getUser = jest.fn(), rpc = jest.fn(), insert = jest.fn(), update = jest.fn(), single = jest.fn();
+const version = "2026-11-27T12:00:00.000Z";
 let result: Record<string, unknown> | null; let existing: Record<string, unknown> | null;
 
 function post(body: unknown = { resultId }, origin = "http://localhost:3000") {
@@ -39,12 +40,45 @@ beforeEach(() => {
     return chain;
   });
   jest.mocked(createClient).mockResolvedValue({ auth: { getUser }, rpc, from } as unknown as Awaited<ReturnType<typeof createClient>>);
-  single.mockResolvedValue({ data: { id: draftId, text: "Congratulations!", status: "draft", kind: "standard", model: "test/model", reviewed_at: null }, error: null });
-  upsert.mockReturnValue({ select: () => ({ single }) });
-  jest.mocked(createAdminClient).mockReturnValue({ from: () => ({ upsert }) } as unknown as ReturnType<typeof createAdminClient>);
+  single.mockResolvedValue({ data: { id: draftId, text: "Congratulations!", status: "draft", kind: "standard", model: "test/model", reviewed_at: null, updated_at: version }, error: null });
+  insert.mockReturnValue({ select: () => ({ single }) });
+  const updates = { eq: jest.fn(), select: () => ({ maybeSingle: single }) };
+  updates.eq.mockReturnValue(updates);
+  update.mockReturnValue(updates);
+  jest.mocked(createAdminClient).mockReturnValue({ from: () => ({ insert, update }) } as unknown as ReturnType<typeof createAdminClient>);
   jest.mocked(draftReply).mockResolvedValue({ text: "Congratulations!", kind: "standard", model: "test/model", promptVersion: "reply-standard-v1" });
 });
 const quotaCalls = () => rpc.mock.calls.filter(([name]) => name === "reserve_usage").length;
+
+test.each([false, true])("a slow generation cannot overwrite a reply saved during inference (regenerate=%s)", async (replace) => {
+  const version = "2026-11-27T12:00:00.000Z";
+  existing = replace ? { id: draftId, updated_at: version } : null;
+  let stored: Record<string, unknown> | null = existing && { ...existing, text: "Original", status: "draft" };
+  const finish = jest.fn(async (write: Record<string, unknown>, expected?: string, insertOnly = false) => {
+    if (insertOnly && stored) return { data: null, error: { code: "23505" } };
+    if (expected && stored?.updated_at !== expected) return { data: null, error: null };
+    stored = { ...stored, ...write };
+    return { data: stored, error: null };
+  });
+  jest.mocked(createAdminClient).mockReturnValue({ from: () => ({
+    upsert: (write: Record<string, unknown>) => ({ select: () => ({ single: () => finish(write) }) }),
+    insert: (write: Record<string, unknown>) => ({ select: () => ({ single: () => finish(write, undefined, true) }) }),
+    update: (write: Record<string, unknown>) => {
+      let expected: string | undefined;
+      const chain = { eq: (field: string, value: string) => { if (field === "updated_at") expected = value; return chain; },
+        select: () => ({ maybeSingle: () => finish(write, expected) }) };
+      return chain;
+    },
+  }) } as unknown as ReturnType<typeof createAdminClient>);
+  jest.mocked(draftReply).mockImplementationOnce(async () => {
+    // Another request finishes and the reviewer approves before this model returns.
+    stored = { id: draftId, text: "Keep this approved reply", status: "approved", updated_at: "2026-11-27T12:01:00.000Z" };
+    return { text: "Late model output", kind: "standard", model: "test/model", promptVersion: "v1" };
+  });
+  const response = await POST(post({ resultId, ...(replace ? { replace: true, expectedUpdatedAt: version } : {}) }));
+  expect(response.status).toBe(409);
+  expect(stored).toMatchObject({ text: "Keep this approved reply", status: "approved" });
+});
 
 test.each([{ resultId: "bad" }, { resultId, mode: "standard" }, { resultId, text: "forged" }, { resultId, user_id: userId }])(
   "rejects forged generation input before authentication or quota", async (body) => {
@@ -69,14 +103,14 @@ test.each([
 ])("blocks %s before quota or inference", async (_, change) => {
   result = change === null ? null : { ...result, ...change };
   expect((await POST(post())).status).toBe(403);
-  expect(quotaCalls()).toBe(0); expect(draftReply).not.toHaveBeenCalled(); expect(upsert).not.toHaveBeenCalled();
+  expect(quotaCalls()).toBe(0); expect(draftReply).not.toHaveBeenCalled(); expect(insert).not.toHaveBeenCalled(); expect(update).not.toHaveBeenCalled();
 });
 
 test("an existing draft is not replaced without explicit confirmation, and spends no allowance", async () => {
-  existing = { id: draftId };
+  existing = { id: draftId, updated_at: version };
   expect((await POST(post())).status).toBe(409);
   expect(quotaCalls()).toBe(0); expect(draftReply).not.toHaveBeenCalled();
-  expect((await POST(post({ resultId, replace: true }))).status).toBe(201);
+  expect((await POST(post({ resultId, replace: true, expectedUpdatedAt: version }))).status).toBe(201);
 });
 
 test("eligible results reserve one AI attempt and save a draft owned by the verified user", async () => {
@@ -85,8 +119,8 @@ test("eligible results reserve one AI attempt and save a draft owned by the veri
   expect((await response.json()).draft).toMatchObject({ id: draftId, status: "draft", kind: "standard" });
   expect(quotaCalls()).toBe(1);
   expect(draftReply).toHaveBeenCalledWith({ mode: "standard", query: "new baby", text, source: "fixtures" });
-  expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: userId, search_result_id: resultId, status: "draft",
-    kind: "standard", prompt_version: "reply-standard-v1" }), { onConflict: "search_result_id" });
+  expect(insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: userId, search_result_id: resultId, status: "draft",
+    kind: "standard", prompt_version: "reply-standard-v1" }));
 });
 
 test("bereavement is generated only through condolence mode", async () => {
@@ -113,9 +147,17 @@ test.each([
 test("review saves text and decision together through the owner-scoped RPC, without AI or quota", async () => {
   const response = await PATCH(...patch({ text: "Edited", status: "approved" }));
   expect(response.status).toBe(200);
-  expect((await response.json()).draft).toEqual({ id: draftId, text: "Edited", status: "approved", reviewed_at: "2026-11-27T12:00:00Z" });
+  expect((await response.json()).draft).toEqual({ id: draftId, text: "Edited", status: "approved", reviewed_at: "2026-11-27T12:00:00Z", updated_at: "x" });
   expect(rpc).toHaveBeenCalledWith("save_draft_review", { p_draft_id: draftId, p_text: "Edited", p_status: "approved" });
   expect(quotaCalls()).toBe(0); expect(draftReply).not.toHaveBeenCalled();
+});
+
+test("stale or missing regeneration versions never dispatch inference", async () => {
+  existing = { id: draftId, updated_at: version };
+  expect((await POST(post({ resultId, replace: true }))).status).toBe(400);
+  expect((await POST(post({ resultId, replace: true, expectedUpdatedAt: "2026-11-27T11:00:00.000Z" }))).status).toBe(409);
+  expect(quotaCalls()).toBe(0);
+  expect(draftReply).not.toHaveBeenCalled();
 });
 
 test("long drafts can still be saved for editing, and unknown drafts return 404", async () => {
