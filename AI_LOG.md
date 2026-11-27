@@ -1,5 +1,12 @@
 # AI assistance log
 
+## 2026-11-27 — First real-app draft failure and review-screen redesign
+
+- The user's first real-app try showed "A reply could not be generated". Reproducing the call directly showed a 307-character reply rejected by the output guard's 300-character rule — a design mistake: length is an editing problem, not a safety one. Over-long drafts are now saved for the reviewer to trim and approval still enforces the limit. Added a regression unit test.
+- The same real post exposed two quality failures the synthetic evals had missed: analysis marked a nostalgic aside ("we didn't have central heating in our first home either") as a relevant first-home event, and the reply opened "Congratulations on buying your first house!". Both prompts now state that the query describes the search, not the author, and that passing mentions or old memories are not current events (`analysis-v2`, `analysis-batch-v2`, `reply-standard-v3`, `reply-condolence-v2`). Added the post as an analysis eval case. Re-runs: analysis 9/9, batch 1/1, drafts 7/7, replies read by hand.
+- Redesigned the signed-in screens with the user's Unslop skill after they approved its audit and direction: full-width shell and header, post and reply side by side on desktop, evidence highlighted inside the post instead of an italic quote, quiet badges with status dots, no sparkle icons, lighter heading weights, scale-based progress animation and accurate home-page copy. The audit also caught signs introduced earlier in this same session (sparkles, italics). Updated one stale home-page test assertion.
+- Verification: 195 Jest tests, 27 Playwright scenarios, lint and TypeScript; desktop (1440px) and mobile (390px) screenshots inspected before and after.
+
 ## 2026-11-27 — Reply generation and human review (Phase 4)
 
 - Wrote six browser acceptance scenarios first (generate → edit → approve → reload, rejection and confirmed regeneration, condolence-only bereavement drafts, no controls plus a server 403 for uncertain results, generation failure and retry, API boundaries) and observed all six fail against the existing UI before implementing. Updated the earlier bereavement scenario, which asserted that no generate control existed, to expect only the dedicated condolence control.

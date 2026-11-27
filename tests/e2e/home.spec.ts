@@ -8,7 +8,7 @@ test("entry page, protected workspace and invalid sign-in behave safely", async 
 
   await expect(page).toHaveTitle("Social Outreach");
   await expect(page.getByRole("heading", { level: 1, name: "Social Outreach" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "The foundation is ready" })).toContainText(
+  await expect(page.getByRole("region", { name: "How it works" })).toContainText(
     "Nothing is sent automatically.",
   );
   expect(browserErrors).toEqual([]);

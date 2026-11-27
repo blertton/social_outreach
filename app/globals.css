@@ -11,6 +11,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-marker: var(--marker);
   --font-sans: Arial, Helvetica, sans-serif;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -52,7 +53,9 @@
   --card-foreground: oklch(0.145 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --border: oklch(0.922 0 0);
-  --background: oklch(1 0 0);
+  --background: oklch(0.985 0 0);
+  /* The one warm moment: a highlighter over the author's own words. */
+  --marker: oklch(0.93 0.1 95);
   --foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -94,6 +97,7 @@
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
+  --marker: oklch(0.42 0.07 90);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);

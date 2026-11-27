@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Check, CircleAlert, Copy, LoaderCircle, RefreshCw, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export type SavedDraft = { id: string; text: string; status: string; kind: string; model: string; reviewed_at: string | null };
 type Status = "draft" | "approved" | "rejected";
 
 const REPLY_LIMIT = 300;
-const statusLabels: Record<string, string> = { draft: "Status: Draft", approved: "Status: Approved", rejected: "Status: Rejected" };
+const statusBadges = {
+  draft: { label: "Draft", dot: "neutral" },
+  approved: { label: "Approved", dot: "positive" },
+  rejected: { label: "Rejected", dot: "negative" },
+} as const;
 const length = (text: string) => [...new Intl.Segmenter("en", { granularity: "grapheme" }).segment(text)].length;
 
 async function readError(response: Response, fallback: string) {
@@ -74,42 +81,58 @@ export function DraftEditor({ resultId, mode, initialDraft }: {
   }
 
   const generateLabel = mode === "condolence" ? "Generate condolence message" : "Generate reply";
-  return <section aria-label="Reply review" className="my-5 space-y-3 border-t pt-5">
-    {mode === "condolence" && <p className="text-sm font-medium">Condolence only — no products, offers or follow-up.</p>}
-    {!draft && <div className="space-y-2">
-      <button type="button" onClick={generate} disabled={!!pending}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-        {pending === "generate" ? "Generating…" : generateLabel}</button>
-      <p className="text-xs text-muted-foreground">One AI request. You review and edit before anything is used.</p>
+  const badge = statusBadges[(draft?.status ?? "draft") as Status] ?? statusBadges.draft;
+  const over = count > REPLY_LIMIT;
+  return <section aria-label="Reply review" className="grid gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-sm font-medium">{mode === "condolence" ? "Condolence message" : "Suggested reply"}</h3>
+      {draft && <Badge dot={badge.dot}><span className="sr-only">Status: </span>{badge.label}</Badge>}
+    </div>
+    {mode === "condolence" && <p className="-mt-2 text-sm text-muted-foreground">Condolence only — no products, offers or follow-up</p>}
+
+    {!draft && <div className="grid gap-3">
+      <p className="max-w-md text-sm leading-relaxed text-muted-foreground">Draft a reply grounded in this post. One AI request — you edit and approve it before anything is used.</p>
+      <Button type="button" size="lg" className="h-10 w-full px-4 sm:w-fit" onClick={generate} disabled={!!pending}>
+        {pending === "generate" && <LoaderCircle aria-hidden className="animate-spin" />}
+        {pending === "generate" ? "Generating…" : generateLabel}</Button>
     </div>}
-    {draft && <>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <label htmlFor={`draft-${resultId}`} className="font-medium">{label}</label>
-        <span className="font-medium">{statusLabels[draft.status] ?? "Status: Draft"}</span>
-      </div>
+
+    {draft && <div className="space-y-2">
+      <label htmlFor={`draft-${resultId}`} className="sr-only">{label}</label>
       <textarea id={`draft-${resultId}`} value={text} onChange={(event) => { setText(event.target.value); setNotice(""); }}
-        rows={4} maxLength={5000} disabled={!!pending}
-        className="w-full rounded-lg border bg-background p-3 text-sm leading-relaxed" />
-      <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-        <span>{dirty ? <span className="font-medium text-foreground">Unsaved changes</span> : draft.reviewed_at ? `Reviewed ${new Date(draft.reviewed_at).toLocaleString()}` : "Not reviewed yet"}</span>
-        <span className={count > REPLY_LIMIT ? "font-medium text-destructive" : ""}>{count} / {REPLY_LIMIT}</span>
+        rows={5} maxLength={5000} disabled={!!pending} aria-describedby={`draft-meta-${resultId}`}
+        className={`w-full resize-y rounded-lg border bg-card p-3 leading-relaxed outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 ${over ? "border-destructive" : ""}`} />
+      <div id={`draft-meta-${resultId}`} className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+        <span>{dirty ? <span className="font-medium text-amber-700 dark:text-amber-300">Unsaved changes</span> : draft.reviewed_at ? `Reviewed ${new Date(draft.reviewed_at).toLocaleString()}` : "Not reviewed yet"}</span>
+        <span className={over ? "font-medium text-destructive" : ""}>{over ? `${count} / ${REPLY_LIMIT} — shorten to approve` : `${count} / ${REPLY_LIMIT}`}</span>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => save("approved")} disabled={!!pending || !text.trim() || count > REPLY_LIMIT}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{pending === "approved" ? "Saving…" : "Approve"}</button>
-        <button type="button" onClick={() => save("rejected")} disabled={!!pending || !text.trim()}
-          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50">{pending === "rejected" ? "Saving…" : "Reject"}</button>
-        <button type="button" onClick={() => save("draft")} disabled={!!pending || !text.trim()}
-          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50">{pending === "draft" ? "Saving…" : "Save draft"}</button>
-        <button type="button" onClick={generate} disabled={!!pending}
-          className="rounded-md border px-4 py-2 text-sm disabled:opacity-50">{pending === "generate" ? "Generating…" : "Regenerate"}</button>
-        {draft.status === "approved" && !dirty && <button type="button" onClick={copy}
-          className="rounded-md border px-4 py-2 text-sm">Copy reply</button>}
+    </div>}
+
+    {draft && <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="grid grid-cols-3 gap-2 sm:flex">
+        <Button type="button" size="lg" className="h-10 px-4" onClick={() => save("approved")} disabled={!!pending || !text.trim() || over}>
+          <Check aria-hidden />{pending === "approved" ? "Saving…" : "Approve"}</Button>
+        <Button type="button" size="lg" variant="outline" className="h-10 px-4" onClick={() => save("draft")} disabled={!!pending || !text.trim()}>
+          {pending === "draft" ? "Saving…" : "Save draft"}</Button>
+        <Button type="button" size="lg" variant="destructive" className="h-10 px-4" onClick={() => save("rejected")} disabled={!!pending || !text.trim()}>
+          <X aria-hidden />{pending === "rejected" ? "Saving…" : "Reject"}</Button>
       </div>
-      <p className="break-words text-xs text-muted-foreground">{draft.model.startsWith("mock/") ? "Simulated draft — no AI inference" : `AI draft · ${draft.model} · Check every detail against the post`}</p>
-      <p className="text-xs text-muted-foreground">Approval only records your decision. Nothing is posted or sent.</p>
-    </>}
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <div className="grid auto-cols-fr grid-flow-col gap-2 sm:flex">
+        {draft.status === "approved" && !dirty && <Button type="button" size="lg" variant="outline" className="h-10 px-4" onClick={copy}>
+          <Copy aria-hidden />Copy reply</Button>}
+        <Button type="button" size="lg" variant="ghost" className="h-10 px-4" onClick={generate} disabled={!!pending}>
+          <RefreshCw aria-hidden className={pending === "generate" ? "animate-spin" : ""} />{pending === "generate" ? "Generating…" : "Regenerate"}</Button>
+      </div>
+    </div>}
+
+    {error && <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+      <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" /><p role="alert">{error}</p>
+    </div>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
+
+    {draft && <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
+      <span>{draft.model.startsWith("mock/") ? "Simulated draft — no AI inference" : `AI draft · ${draft.model} · Check every detail against the post`}</span>
+      <span> · Approval only records your decision. Nothing is posted or sent.</span>
+    </p>}
   </section>;
 }

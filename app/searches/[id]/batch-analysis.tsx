@@ -1,16 +1,18 @@
 "use client";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const AnalysisActions = createContext<{ busy: boolean; analyzePost: (id: string) => void } | null>(null);
 
 export function AnalyzePostButton({ resultId, failed }: { resultId: string; failed: boolean }) {
   const actions = useContext(AnalysisActions);
   if (!actions) return null;
-  return <div className="space-y-2">
-    <button type="button" disabled={actions.busy} onClick={() => actions.analyzePost(resultId)}
-      className="rounded-md border px-4 py-2 text-sm disabled:opacity-50">{failed ? "Retry post analysis" : "Analyze post"}</button>
-    <p className="text-xs text-muted-foreground">One post · one AI request</p>
+  return <div className="flex items-center gap-3">
+    <span className="text-xs text-muted-foreground">One post · one AI request</span>
+    <Button type="button" variant="outline" size="lg" disabled={actions.busy} onClick={() => actions.analyzePost(resultId)}>
+      {failed ? "Retry post analysis" : "Analyze post"}</Button>
   </div>;
 }
 
@@ -53,13 +55,23 @@ export function BatchAnalysis({ searchId, total, complete, pending, failed, chil
   }, []);
 
   return <AnalysisActions.Provider value={{ busy, analyzePost: (id) => void run([id]) }}>
-    <section aria-label="Analysis progress" className="mb-6 space-y-3 rounded-lg border p-4">
-    <p role="status" className="text-sm">{busy ? `Analyzing posts… ${progress} of ${total} complete` : `${Math.max(complete, progress)} of ${total} posts analyzed`}</p>
-    <p className="text-sm text-muted-foreground">{pending + failed > 0 ? `Choose individual posts below, or analyze the remaining ${pending + failed} together.` : "All posts have saved analysis."}</p>
-    <p className="text-xs text-muted-foreground">{pending + failed > 0 && `Analyze all uses up to ${Math.ceil((pending + failed) / 5)} AI requests, with five posts per request. `}Opening this page uses no AI credits. Saved analysis is reused.</p>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {(busy || pending > 0 || failed > 0 || error) && <button type="button" disabled={busy} onClick={() => void run()}
-      className="rounded-md border px-4 py-2 text-sm disabled:opacity-50">{busy ? "Analyzing…" : error || failed > 0 ? "Retry analysis" : complete > 0 ? "Analyze remaining posts" : "Analyze all posts"}</button>}
+    <section aria-label="Analysis progress" className="mb-6 rounded-xl border bg-card p-4 shadow-xs sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <p role="status" className="font-medium">{busy ? `Analyzing posts… ${progress} of ${total} complete` : `${Math.max(complete, progress)} of ${total} posts analyzed`}</p>
+          <p className="text-sm text-muted-foreground">{pending + failed > 0 ? `Choose individual posts below, or analyze the remaining ${pending + failed} together.` : "All posts have saved analysis."}</p>
+        </div>
+        {(busy || pending > 0 || failed > 0 || error) && <Button type="button" size="lg" disabled={busy} onClick={() => void run()}>
+          {busy && <LoaderCircle aria-hidden className="animate-spin" />}
+          {busy ? "Analyzing…" : error || failed > 0 ? "Retry analysis" : complete > 0 ? "Analyze remaining posts" : "Analyze all posts"}</Button>}
+      </div>
+      <div aria-hidden className="mt-4 h-1 overflow-hidden rounded-full bg-muted">
+        {/* Scale, not width, so the bar animates on the compositor. */}
+        <div className="h-full origin-left rounded-full bg-primary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ transform: `scaleX(${total ? Math.max(complete, progress) / total : 0})` }} />
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">{pending + failed > 0 && `Analyze all uses up to ${Math.ceil((pending + failed) / 5)} AI requests, with five posts per request. `}Opening this page uses no AI credits. Saved analysis is reused.</p>
+      {error && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
     </section>
     {children}
   </AnalysisActions.Provider>;

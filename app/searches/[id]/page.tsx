@@ -8,6 +8,8 @@ import { blueskyPostUrl } from "@/lib/sources/urls";
 import { BatchAnalysis } from "./batch-analysis";
 import { DraftEditor } from "./draft-editor";
 import { draftMode } from "@/lib/ai/eligibility";
+import { ExternalLink } from "lucide-react";
+import { AppHeader } from "@/components/app-header";
 
 export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,41 +43,66 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
     // Same server policy the draft route enforces; the UI only mirrors it.
     const mode = analysis ? draftMode({ status: "complete", ...analysis }) : "blocked";
     const saved = draftsByResult.get(result.id);
-    return <article key={result.id} data-result-id={result.id} className="rounded-xl border p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-        <span>@{post?.author_handle ?? "Unavailable author"}</span>
-        {post && <time dateTime={post.posted_at}>{new Date(post.posted_at).toISOString().slice(0, 10)}</time>}
+    const evidenceAt = analysis ? result.source_text_snapshot.indexOf(analysis.evidence) : -1;
+    return <article key={result.id} data-result-id={result.id}
+      className="grid overflow-hidden rounded-xl border bg-card shadow-xs lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="min-w-0 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-muted-foreground">
+            <span className="truncate font-medium text-foreground">@{post?.author_handle ?? "Unavailable author"}</span>
+            {post && <><span aria-hidden>·</span><time dateTime={post.posted_at} className="tabular-nums">{new Date(post.posted_at).toISOString().slice(0, 10)}</time></>}
+          </div>
+          {originalUrl && <a href={originalUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline">
+            View original post<ExternalLink aria-hidden className="size-3.5" /></a>}
+        </div>
+        {/* Signature: the words the assessment relies on are marked inside the post itself. */}
+        <p className="mt-4 whitespace-pre-wrap text-[1.0625rem] leading-relaxed wrap-break-word">{evidenceAt >= 0 && analysis ? <>
+          {result.source_text_snapshot.slice(0, evidenceAt)}
+          <mark className="rounded-sm bg-marker px-0.5 text-foreground">{analysis.evidence}</mark>
+          {result.source_text_snapshot.slice(evidenceAt + analysis.evidence.length)}
+        </> : result.source_text_snapshot}</p>
+        <AnalysisPanel resultId={result.id} status={result.analysis_status} model={result.analysis_model} analysis={analysis} />
       </div>
-      <p className="my-5 whitespace-pre-wrap break-words leading-relaxed">{result.source_text_snapshot}</p>
-      <AnalysisPanel resultId={result.id} status={result.analysis_status} model={result.analysis_model} analysis={analysis} />
-      {mode !== "blocked" && <DraftEditor resultId={result.id} mode={mode} initialDraft={saved ? {
-        id: saved.id, text: saved.text, status: saved.status, kind: saved.kind, model: saved.model, reviewed_at: saved.reviewed_at } : null} />}
-      {originalUrl && <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline underline-offset-4">View original post</a>}
+      <div className="min-w-0 border-t bg-muted/40 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+        {mode !== "blocked" ? <DraftEditor resultId={result.id} mode={mode} initialDraft={saved ? {
+          id: saved.id, text: saved.text, status: saved.status, kind: saved.kind, model: saved.model, reviewed_at: saved.reviewed_at } : null} />
+          : <div className="flex h-full min-h-24 flex-col justify-center gap-1 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{analysis ? "No reply suggested" : "Reply waits for analysis"}</p>
+            <p className="leading-relaxed">{analysis ? "This post is not a clear, non-sensitive match for your search, so no reply is drafted. Any response is left to your judgement." : "Analyze this post to see whether a reply fits."}</p>
+          </div>}
+      </div>
     </article>;
   }
-  return <main className="mx-auto max-w-4xl px-6 py-10">
-    <nav aria-label="Search actions" className="flex flex-wrap gap-5 text-sm underline underline-offset-4">
-      <Link href="/search">New search</Link>
-      <Link href={{ pathname: "/search", query: { query: search.query, source: search.source } }}>Refine search</Link>
-    </nav>
-    <header className="my-8 border-b pb-6">
-      <p className="text-sm font-medium text-muted-foreground">{search.source === "fixtures" ? "Sample data — synthetic examples" : "Bluesky — public posts"}</p>
-      <h1 className="mt-3 text-3xl font-semibold">Search results</h1>
-      <p className="mt-3 break-words leading-relaxed">{search.query}</p>
-      <p className="mt-3 text-sm text-muted-foreground">{results?.length ?? 0} {results?.length === 1 ? "post" : "posts"} · Saved to your workspace</p>
-      {!!results?.length && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Analyze only the posts you choose. Analyzed relevant posts appear first; check each explanation against the original text.</p>}
-      {(search.filtered_count > 0 || search.skipped_count > 0) && <p className="mt-2 text-sm text-muted-foreground">{search.filtered_count} excluded by source-label policy; {search.skipped_count} invalid records skipped.</p>}
-    </header>
-    {!results?.length && <p role="status" className="leading-relaxed">No matching posts. Refine your search: try a shorter phrase, add an alternative with a comma, or optionally ask AI for more wording. Sample data only contains a few fixed examples.</p>}
-    {!!results?.length && <BatchAnalysis key={id} searchId={id} total={reviewed.length}
-      complete={reviewed.filter((r) => r.analysis !== null).length}
-      pending={reviewed.filter((r) => r.result.analysis_status === "pending").length}
-      failed={reviewed.filter((r) => r.result.analysis_status === "failed").length}>
-      <div className="grid gap-5">{visible.map(renderResult)}</div>
-      {irrelevant.length > 0 && <details className="mt-6 rounded-lg border p-4">
-        <summary className="cursor-pointer font-medium">Not relevant ({irrelevant.length})</summary>
-        <div className="mt-4 grid gap-5">{irrelevant.map(renderResult)}</div>
-      </details>}
-    </BatchAnalysis>}
-  </main>;
+  const sourceLabel = search.source === "fixtures" ? "Sample data — synthetic examples" : "Bluesky — public posts";
+  return <>
+    <AppHeader email={user.email} />
+    <main className="mx-auto max-w-360 px-4 py-8 sm:px-6 lg:px-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <div className="min-w-0 max-w-3xl">
+          <p className="text-sm text-muted-foreground">{sourceLabel}</p>
+          <h1 className="mt-2 text-3xl font-medium tracking-tight">Search results</h1>
+          <p className="mt-2 leading-relaxed wrap-break-word">{search.query}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            <span className="tabular-nums">{results?.length ?? 0}</span> {results?.length === 1 ? "post" : "posts"} · Saved to your workspace
+            {(search.filtered_count > 0 || search.skipped_count > 0) && <> · {search.filtered_count} excluded by source-label policy; {search.skipped_count} invalid records skipped</>}
+          </p>
+        </div>
+        <Link href={{ pathname: "/search", query: { query: search.query, source: search.source } }}
+          className="inline-flex h-9 items-center rounded-lg border bg-card px-4 text-sm font-medium transition-colors hover:bg-muted">Refine search</Link>
+      </header>
+      {!results?.length && <p role="status" className="rounded-xl border bg-card p-6 leading-relaxed">No matching posts. Refine your search: try a shorter phrase, add an alternative with a comma, or optionally ask AI for more wording. Sample data only contains a few fixed examples.</p>}
+      {!!results?.length && <BatchAnalysis key={id} searchId={id} total={reviewed.length}
+        complete={reviewed.filter((r) => r.analysis !== null).length}
+        pending={reviewed.filter((r) => r.result.analysis_status === "pending").length}
+        failed={reviewed.filter((r) => r.result.analysis_status === "failed").length}>
+        <p className="mb-4 text-sm text-muted-foreground">Analyze only the posts you choose. Analyzed relevant posts appear first; check each explanation against the original text.</p>
+        <div className="grid gap-4">{visible.map(renderResult)}</div>
+        {irrelevant.length > 0 && <details className="mt-6 rounded-xl border bg-card p-4">
+          <summary className="cursor-pointer font-medium text-muted-foreground">Not relevant ({irrelevant.length})</summary>
+          <div className="mt-4 grid gap-4">{irrelevant.map(renderResult)}</div>
+        </details>}
+      </BatchAnalysis>}
+    </main>
+  </>;
 }
