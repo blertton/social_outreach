@@ -17,7 +17,7 @@ test("users choose their own phrases without fixed topics or AI and can refine t
   await page.getByRole("button", { name: "Search posts" }).click();
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(page.getByRole("article")).toContainText("Our daughter arrived yesterday.");
-  await expect(page.getByRole("article")).toContainText("Not analyzed yet");
+  await expect(page.getByRole("article")).toContainText("Relevant");
   await page.screenshot({ path: "test-results/targeted-results.png", fullPage: true });
   await page.getByRole("link", { name: "Refine search" }).click();
   await expect(page.getByLabel("Keywords or hashtags")).toHaveValue("daughter arrived, baby arrived");

@@ -66,7 +66,7 @@ try {
     for (const cached of [false, true]) {
       const response = await fetch(new URL("/api/analysis", app), { method: "POST",
         headers: { Origin: app.origin, Cookie: cookie, "Content-Type": "application/json" },
-        body: JSON.stringify({ resultId: result.id }), signal: AbortSignal.timeout(70_000) });
+        body: JSON.stringify({ searchId: searchIds[0] }), signal: AbortSignal.timeout(70_000) });
       const body = await response.json();
       if (response.status !== 200 || body.cached !== cached) throw new Error("Analysis smoke failed");
     }

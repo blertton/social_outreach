@@ -80,6 +80,9 @@ try {
   sql(readFileSync(new URL("../../supabase/migrations/20261126235000_save_search.sql", import.meta.url), "utf8"));
   sql(readFileSync(new URL("./save-search.sql", import.meta.url), "utf8"));
   console.log("Search persistence: trusted-only RPC, repeated-post dedupe, distinct searches and atomic rollback passed.");
+  sql(readFileSync(new URL("../../supabase/migrations/20261127100100_save_analysis_batch.sql", import.meta.url), "utf8"));
+  sql(readFileSync(new URL("./analysis-batch.sql", import.meta.url), "utf8"));
+  console.log("Analysis batches: atomic validation/save, ownership, browser denial and completed-result reuse passed.");
 } finally {
   if (container && /^[a-f0-9]{64}$/.test(container)) docker(["rm", "-f", container]);
 }

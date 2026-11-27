@@ -2,13 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/db/server";
 import { createAdminClient } from "@/lib/db/admin";
-import { analyzePost } from "@/lib/ai/analysis";
-import { readSavedAnalysis } from "@/lib/ai/analysis-schema";
+import { analyzeBatch } from "@/lib/ai/analysis";
 import { requireUser, reserveUsage, GateError } from "@/lib/security/gates";
 import { hasSameOrigin } from "@/lib/security/origin";
 import { readJsonBody } from "@/lib/security/request";
 
-const inputSchema = z.object({ resultId: z.uuid() }).strict();
+const inputSchema = z.object({ searchId: z.uuid(), retryFailed: z.boolean().optional() }).strict();
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
@@ -16,44 +15,40 @@ export async function POST(request: Request) {
   try {
     if (!hasSameOrigin(request)) throw new GateError(403, "Request origin is not allowed.");
     const parsed = inputSchema.safeParse(await readJsonBody(request, 1024));
-    if (!parsed.success) throw new GateError(400, "Choose a valid saved result.");
+    if (!parsed.success) throw new GateError(400, "Choose a valid saved search.");
     const client = await createClient();
     const userId = await requireUser(client);
-    const { data: result, error } = await client.from("search_results").select("*")
-      .eq("id", parsed.data.resultId).eq("user_id", userId).maybeSingle();
-    if (error) throw new Error();
-    if (!result || result.user_id !== userId) throw new GateError(403, "This result is unavailable.");
-    if (result.analysis_status === "complete") {
-      if (!readSavedAnalysis(result.analysis, result.source_text_snapshot)) throw new Error();
-      return NextResponse.json({ status: "complete", cached: true }, { headers });
-    }
     const { data: search, error: searchError } = await client.from("searches").select("query")
-      .eq("id", result.search_id).eq("user_id", userId).maybeSingle();
-    if (searchError || !search) throw new Error();
+      .eq("id", parsed.data.searchId).eq("user_id", userId).maybeSingle();
+    if (searchError) throw new Error();
+    if (!search) throw new GateError(403, "This search is unavailable.");
+    const { data: rows, error } = await client.from("search_results").select("*")
+      .eq("search_id", parsed.data.searchId).eq("user_id", userId)
+      .in("analysis_status", parsed.data.retryFailed ? ["pending", "failed"] : ["pending"])
+      .order("original_rank").limit(20);
+    if (error || !rows) throw new Error();
+    if (rows.some((r) => r.user_id !== userId || r.search_id !== parsed.data.searchId || r.analysis_status === "complete")) throw new GateError(403, "These results are unavailable.");
+    const batch = rows.slice(0, 5);
+    if (!batch.length) return NextResponse.json({ processed: 0, remaining: 0, cached: true }, { headers });
     await reserveUsage(client, "ai");
     const admin = createAdminClient();
-    let output: Awaited<ReturnType<typeof analyzePost>>;
+    let output: Awaited<ReturnType<typeof analyzeBatch>>;
     try {
-      output = await analyzePost({ id: result.id, query: search.query, text: result.source_text_snapshot,
-        source: z.enum(["bluesky", "fixtures"]).parse(result.source) });
+      output = await analyzeBatch(search.query, batch.map((r) => ({ id: r.id, text: r.source_text_snapshot,
+        source: z.enum(["bluesky", "fixtures"]).parse(r.source) })));
     } catch {
       // A late failure must never overwrite another request's completed result.
       await admin.from("search_results").update({ analysis_status: "failed", analysis: null,
         analysis_error_code: "inference_failed", analyzed_at: null, analysis_model: null, analysis_prompt_version: null })
-        .eq("id", result.id).eq("user_id", userId).neq("analysis_status", "complete");
+        .in("id", batch.map((r) => r.id)).eq("search_id", parsed.data.searchId).eq("user_id", userId).neq("analysis_status", "complete");
       throw new Error();
     }
-    const { data: saved, error: saveError } = await admin.from("search_results").update({
-      analysis_status: "complete", analysis: output.analysis, analysis_model: output.model,
-      analysis_prompt_version: output.promptVersion, analyzed_at: new Date().toISOString(), analysis_error_code: null,
-    }).eq("id", result.id).eq("user_id", userId).neq("analysis_status", "complete").select("id").maybeSingle();
-    if (saveError) throw new Error();
-    if (!saved) {
-      const { data: winner, error: winnerError } = await client.from("search_results").select("*")
-        .eq("id", result.id).eq("user_id", userId).maybeSingle();
-      if (winnerError || winner?.analysis_status !== "complete" || !readSavedAnalysis(winner.analysis, result.source_text_snapshot)) throw new Error();
-    }
-    return NextResponse.json({ status: "complete", cached: false }, { headers });
+    const { data: saved, error: saveError } = await admin.rpc("save_analysis_batch", {
+      p_user_id: userId, p_search_id: parsed.data.searchId, p_results: output.results,
+      p_model: output.model, p_prompt_version: output.promptVersion,
+    });
+    if (saveError || saved === null) throw new Error();
+    return NextResponse.json({ processed: batch.length, remaining: rows.length - batch.length, cached: false }, { headers });
   } catch (error) {
     if (error instanceof GateError) {
       if (error.retryAfterSeconds) headers["Retry-After"] = String(error.retryAfterSeconds);

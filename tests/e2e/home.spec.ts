@@ -51,10 +51,10 @@ test("sign-in, session refresh, sample search persistence and signout", async ({
   expect((await savedSearch).status()).toBe(201);
   await expect(page).toHaveURL(/\/searches\/[a-f0-9-]+$/);
   await expect(page.getByText("Sample data — synthetic examples", { exact: true })).toBeVisible();
-  await expect(page.getByText("Our daughter arrived yesterday.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Our daughter arrived yesterday. We are exhausted and completely in love.", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "View original post" })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByText("Our daughter arrived yesterday.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Our daughter arrived yesterday. We are exhausted and completely in love.", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "New search" }).click();
   await page.getByLabel("Keywords or hashtags").fill("unmatchablephrase");
   await page.getByLabel("Source", { exact: true }).selectOption("fixtures");

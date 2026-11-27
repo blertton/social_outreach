@@ -10,6 +10,9 @@ export const savedAnalysisSchema = z.object({
 export const analysisOutputSchema = z.object({
   results: z.array(savedAnalysisSchema.extend({ id: z.string().min(1).max(100) })).length(1),
 }).strict();
+export const batchAnalysisOutputSchema = z.object({
+  results: z.array(savedAnalysisSchema.extend({ id: z.string().min(1).max(100) })).min(1).max(5),
+}).strict();
 
 export type SavedAnalysis = z.infer<typeof savedAnalysisSchema>;
 

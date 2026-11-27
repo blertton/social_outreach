@@ -21,6 +21,7 @@
     "smoke:suggestions": "node --env-file=.env scripts/smoke-search.mjs --suggestions",
     "eval": "node --env-file=.env scripts/eval-model.mjs",
     "eval:analysis": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/analysis.eval.ts",
+    "eval:batch": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/batch.eval.ts",
     "eval:search": "node --env-file=.env node_modules/jest/bin/jest.js --runInBand --testMatch=**/tests/evaluation/search.eval.ts",
     "db:login": "supabase login",
     "db:link": "supabase link",

@@ -230,6 +230,16 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      save_analysis_batch: {
+        Args: {
+          p_model: string
+          p_prompt_version: string
+          p_results: Json
+          p_search_id: string
+          p_user_id: string
+        }
+        Returns: number
+      }
       save_search: {
         Args: {
           p_filtered?: number

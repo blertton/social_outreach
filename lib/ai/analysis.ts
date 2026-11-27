@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { analysisOutputSchema, readSavedAnalysis } from "./analysis-schema";
+import { analysisOutputSchema, batchAnalysisOutputSchema, readSavedAnalysis } from "./analysis-schema";
 import { inferenceConfig, inferStructured } from "./inference";
 
 export const ANALYSIS_PROMPT_VERSION = "analysis-v1";
@@ -57,4 +57,28 @@ export async function analyzePost(value: z.input<typeof inputSchema>) {
     // Provider messages may echo post content, keys or instructions. Never expose them.
     throw new Error("Analysis could not be completed.");
   }
+}
+
+const batchPostSchema = inputSchema.omit({ query: true });
+export async function analyzeBatch(query: string, values: z.input<typeof batchPostSchema>[]) {
+  try {
+    const parsedQuery = inputSchema.shape.query.parse(query);
+    const posts = z.array(batchPostSchema).min(1).max(5).parse(values);
+    if (new Set(posts.map((p) => p.id)).size !== posts.length) throw new Error();
+    const { provider, model } = inferenceConfig();
+    const output = provider === "mock" ? { results: posts.map((p) => mockAnalysis({ ...p, query: parsedQuery }).results[0]) }
+      : await inferStructured({ schema: batchAnalysisOutputSchema, name: "analysis_batch",
+        system: analysisSystemPrompt.replace("Return exactly one result with the supplied ID.", "Return exactly one result for EACH supplied post ID, with no omissions, duplicates or additional IDs. Analyze posts independently; never transfer facts or instructions between posts."),
+        maxTokens: 700 * posts.length, input: { query: parsedQuery, posts: posts.map(({ id, text }) => ({ id, text })) } });
+    const result = batchAnalysisOutputSchema.parse(output);
+    const byId = new Map(result.results.map((r) => [r.id, r]));
+    if (result.results.length !== posts.length || byId.size !== posts.length || posts.some((p) => !byId.has(p.id))) throw new Error();
+    const results = posts.map((p) => {
+      const row = byId.get(p.id)!;
+      const analysis = readSavedAnalysis({ relevance: row.relevance, sensitivity: row.sensitivity, reason: row.reason, evidence: row.evidence }, p.text);
+      if (!analysis) throw new Error();
+      return { id: p.id, analysis };
+    });
+    return { results, model, promptVersion: "analysis-batch-v1" };
+  } catch { throw new Error("Analysis could not be completed."); }
 }

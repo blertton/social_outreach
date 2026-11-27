@@ -22,6 +22,21 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1:54329");
   if (url.pathname === "/health") return reply(200, { ready: true });
   if (url.pathname === "/test/status") return reply(200, { refreshCount });
+  if (["/test/seed-batch", "/test/seed-analysis-order"].includes(url.pathname) && req.method === "POST") {
+    const id = crypto.randomUUID(); const ordered = url.pathname.endsWith("analysis-order");
+    searches.push({ id, user_id: user.id, query: "new baby", source: "fixtures", filtered_count: 0, skipped_count: 0 });
+    for (let i = 0; i < (ordered ? 3 : 20); i++) {
+      const postId = crypto.randomUUID(); const text = url.searchParams.get("fail") === "true" && i < 5 ? "Unrecognized synthetic analysis fixture."
+        : ordered && i < 2 ? ["Synthetic unrelated post.", "Something changed."][i] : "Our daughter arrived yesterday. We are exhausted and completely in love.";
+      posts.push({ id: postId, user_id: user.id, source: "fixtures", external_id: `sample:${crypto.randomUUID()}`,
+        author_id: `sample:${i}`, author_handle: `sample.${i}`, posted_at: "2026-11-20T12:00:00Z", url: null });
+      results.push({ id: crypto.randomUUID(), user_id: user.id, search_id: id, post_id: postId, source: "fixtures",
+        source_text_snapshot: text, original_rank: i, analysis_status: ordered ? "complete" : "pending",
+        analysis: ordered ? { relevance: ["irrelevant", "uncertain", "relevant"][i], sensitivity: "none", reason: "Synthetic ordering fixture.", evidence: text } : null,
+        analysis_model: ordered ? "mock/synthetic-v1" : null });
+    }
+    return reply(200, { searchId: id });
+  }
   if (url.pathname === "/test/seed-live-link" && req.method === "POST") {
     const searchId = crypto.randomUUID(), postId = crypto.randomUUID();
     searches.push({ id: searchId, user_id: user.id, query: "baby", source: "bluesky", filtered_count: 0, skipped_count: 0 });
@@ -29,7 +44,7 @@ http.createServer(async (req, res) => {
       author_id: "did:plc:test", author_handle: "sample.test", posted_at: "2026-11-20T12:00:00Z",
       url: "https://bsky.app/profile/did%3Aplc%3Atest/post/abc123" });
     results.push({ id: crypto.randomUUID(), user_id: user.id, source: "bluesky", search_id: searchId, post_id: postId,
-      source_text_snapshot: "Synthetic link regression example", original_rank: 0, analysis_status: "pending" });
+      source_text_snapshot: "Synthetic link regression example", original_rank: 0, analysis_status: "failed" });
     return reply(200, { searchId });
   }
   const authorization = req.headers.authorization?.replace(/^Bearer /, "");
@@ -37,6 +52,18 @@ http.createServer(async (req, res) => {
     const trusted = req.headers.apikey === "sb_secret_test_key";
     if (!trusted && !tokens.has(authorization)) return reply(401, { message: "Invalid session" });
     if (url.pathname === "/rest/v1/rpc/reserve_usage") return reply(200, [{ allowed: true, remaining: 29, retry_after_seconds: 0 }]);
+    if (url.pathname === "/rest/v1/rpc/save_analysis_batch" && trusted) {
+      let raw = ""; for await (const chunk of req) raw += chunk;
+      const input = JSON.parse(raw); let count = 0;
+      for (const item of input.p_results) {
+        const row = results.find((r) => r.id === item.id && r.user_id === input.p_user_id && r.search_id === input.p_search_id);
+        if (!row) return reply(400, { message: "Unavailable result" });
+        if (row.analysis_status === "complete") continue;
+        Object.assign(row, { analysis: item.analysis, analysis_status: "complete", analysis_error_code: null,
+          analysis_model: input.p_model, analysis_prompt_version: input.p_prompt_version, analyzed_at: new Date().toISOString() }); count++;
+      }
+      return reply(200, count);
+    }
     if (url.pathname === "/rest/v1/rpc/save_search" && trusted) {
       let raw = ""; for await (const chunk of req) raw += chunk;
       const input = JSON.parse(raw); const id = crypto.randomUUID();
@@ -56,6 +83,7 @@ http.createServer(async (req, res) => {
       const changed = results.filter((row) => [...url.searchParams].every(([field, filter]) => {
         if (filter.startsWith("eq.")) return row[field] === filter.slice(3);
         if (filter.startsWith("neq.")) return row[field] !== filter.slice(4);
+        if (filter.startsWith("in.(")) return filter.slice(4, -1).split(",").includes(row[field]);
         return true;
       }));
       for (const row of changed) Object.assign(row, updates);
@@ -67,8 +95,10 @@ http.createServer(async (req, res) => {
       data = data.filter((row) => row.user_id === user.id);
       for (const [field, filter] of url.searchParams) {
         if (filter.startsWith("eq.")) data = data.filter((row) => row[field] === filter.slice(3));
-        if (field === "id" && filter.startsWith("in.(")) data = data.filter((row) => filter.slice(4, -1).split(",").includes(row.id));
+        if (filter.startsWith("in.(")) data = data.filter((row) => filter.slice(4, -1).split(",").includes(row[field]));
       }
+      if (url.searchParams.has("order")) data = data.toSorted((a, b) => a.original_rank - b.original_rank);
+      if (url.searchParams.has("limit")) data = data.slice(0, Number(url.searchParams.get("limit")));
       return reply(200, data);
     }
     return reply(403, {});
