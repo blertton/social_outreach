@@ -36,7 +36,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         {post && <time dateTime={post.posted_at}>{new Date(post.posted_at).toISOString().slice(0, 10)}</time>}
       </div>
       <p className="my-5 whitespace-pre-wrap break-words leading-relaxed">{result.source_text_snapshot}</p>
-      <AnalysisPanel status={result.analysis_status} model={result.analysis_model} analysis={analysis} />
+      <AnalysisPanel resultId={result.id} status={result.analysis_status} model={result.analysis_model} analysis={analysis} />
       {originalUrl && <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline underline-offset-4">View original post</a>}
     </article>;
   }
@@ -50,18 +50,19 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
       <h1 className="mt-3 text-3xl font-semibold">Search results</h1>
       <p className="mt-3 break-words leading-relaxed">{search.query}</p>
       <p className="mt-3 text-sm text-muted-foreground">{results?.length ?? 0} {results?.length === 1 ? "post" : "posts"} · Saved to your workspace</p>
-      {!!results?.length && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Contextual analysis starts automatically. Relevant posts appear first; check each explanation against the original text.</p>}
+      {!!results?.length && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Analyze only the posts you choose. Analyzed relevant posts appear first; check each explanation against the original text.</p>}
       {(search.filtered_count > 0 || search.skipped_count > 0) && <p className="mt-2 text-sm text-muted-foreground">{search.filtered_count} excluded by source-label policy; {search.skipped_count} invalid records skipped.</p>}
     </header>
     {!results?.length && <p role="status" className="leading-relaxed">No matching posts. Refine your search: try a shorter phrase, add an alternative with a comma, or optionally ask AI for more wording. Sample data only contains a few fixed examples.</p>}
     {!!results?.length && <BatchAnalysis key={id} searchId={id} total={reviewed.length}
       complete={reviewed.filter((r) => r.analysis !== null).length}
       pending={reviewed.filter((r) => r.result.analysis_status === "pending").length}
-      failed={reviewed.filter((r) => r.result.analysis_status === "failed").length} />}
-    <div className="grid gap-5">{visible.map(renderResult)}</div>
-    {irrelevant.length > 0 && <details className="mt-6 rounded-lg border p-4">
-      <summary className="cursor-pointer font-medium">Not relevant ({irrelevant.length})</summary>
-      <div className="mt-4 grid gap-5">{irrelevant.map(renderResult)}</div>
-    </details>}
+      failed={reviewed.filter((r) => r.result.analysis_status === "failed").length}>
+      <div className="grid gap-5">{visible.map(renderResult)}</div>
+      {irrelevant.length > 0 && <details className="mt-6 rounded-lg border p-4">
+        <summary className="cursor-pointer font-medium">Not relevant ({irrelevant.length})</summary>
+        <div className="mt-4 grid gap-5">{irrelevant.map(renderResult)}</div>
+      </details>}
+    </BatchAnalysis>}
   </main>;
 }

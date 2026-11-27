@@ -7,7 +7,9 @@ import { requireUser, reserveUsage, GateError } from "@/lib/security/gates";
 import { hasSameOrigin } from "@/lib/security/origin";
 import { readJsonBody } from "@/lib/security/request";
 
-const inputSchema = z.object({ searchId: z.uuid(), retryFailed: z.boolean().optional() }).strict();
+const inputSchema = z.object({ searchId: z.uuid(), retryFailed: z.boolean().optional(),
+  resultIds: z.array(z.uuid()).min(1).max(5).refine((ids) => new Set(ids).size === ids.length).optional(),
+}).strict();
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
@@ -22,13 +24,16 @@ export async function POST(request: Request) {
       .eq("id", parsed.data.searchId).eq("user_id", userId).maybeSingle();
     if (searchError) throw new Error();
     if (!search) throw new GateError(403, "This search is unavailable.");
-    const { data: rows, error } = await client.from("search_results").select("*")
-      .eq("search_id", parsed.data.searchId).eq("user_id", userId)
-      .in("analysis_status", parsed.data.retryFailed ? ["pending", "failed"] : ["pending"])
-      .order("original_rank").limit(20);
+    const selected = parsed.data.resultIds;
+    const statuses = selected || parsed.data.retryFailed ? ["pending", "failed"] : ["pending"];
+    let query = client.from("search_results").select("*").eq("search_id", parsed.data.searchId).eq("user_id", userId);
+    query = selected ? query.in("id", selected) : query.in("analysis_status", statuses);
+    const { data: rows, error } = await query.order("original_rank").limit(selected ? 5 : 20);
     if (error || !rows) throw new Error();
-    if (rows.some((r) => r.user_id !== userId || r.search_id !== parsed.data.searchId || r.analysis_status === "complete")) throw new GateError(403, "These results are unavailable.");
-    const batch = rows.slice(0, 5);
+    if (rows.some((r) => r.user_id !== userId || r.search_id !== parsed.data.searchId || (selected ? !selected.includes(r.id) : !statuses.includes(r.analysis_status)))
+      || (selected && (rows.length !== selected.length || selected.some((id) => !rows.some((r) => r.id === id))))) throw new GateError(403, "These results are unavailable.");
+    const eligible = rows.filter((r) => statuses.includes(r.analysis_status));
+    const batch = eligible.slice(0, 5);
     if (!batch.length) return NextResponse.json({ processed: 0, remaining: 0, cached: true }, { headers });
     await reserveUsage(client, "ai");
     const admin = createAdminClient();
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
       p_model: output.model, p_prompt_version: output.promptVersion,
     });
     if (saveError || saved === null) throw new Error();
-    return NextResponse.json({ processed: batch.length, remaining: rows.length - batch.length, cached: false }, { headers });
+    return NextResponse.json({ processed: batch.length, remaining: eligible.length - batch.length, cached: false }, { headers });
   } catch (error) {
     if (error instanceof GateError) {
       if (error.retryAfterSeconds) headers["Retry-After"] = String(error.retryAfterSeconds);

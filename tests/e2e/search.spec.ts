@@ -75,6 +75,7 @@ test("mobile sample search has readable results without horizontal overflow", as
   await page.getByLabel("Source", { exact: true }).selectOption("fixtures");
   await page.getByRole("button", { name: "Search posts" }).click();
   await expect(page.getByRole("article").first()).toBeVisible();
+  await page.getByRole("article").first().getByRole("button", { name: "Analyze post", exact: true }).click();
   await expect(page.getByRole("article").first().getByText("Relevant", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/mobile-search.png", fullPage: true });

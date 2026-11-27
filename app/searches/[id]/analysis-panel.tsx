@@ -1,11 +1,12 @@
 import { draftMode } from "@/lib/ai/eligibility";
 import type { SavedAnalysis } from "@/lib/ai/analysis-schema";
+import { AnalyzePostButton } from "./batch-analysis";
 
 const relevanceLabels = { relevant: "Relevant", irrelevant: "Not relevant", uncertain: "Relevance uncertain" };
 const sensitivityLabels = { none: "No sensitivity identified", bereavement: "Bereavement", other: "Sensitive discussion", uncertain: "Sensitivity uncertain" };
 
-export function AnalysisPanel({ analysis, status, model }: {
-  analysis: SavedAnalysis | null; status: string; model: string | null;
+export function AnalysisPanel({ analysis, status, model, resultId }: {
+  analysis: SavedAnalysis | null; status: string; model: string | null; resultId: string;
 }) {
 
   if (analysis) {
@@ -24,5 +25,6 @@ export function AnalysisPanel({ analysis, status, model }: {
 
   return <section aria-label="Contextual analysis" className="my-5 space-y-3 border-t pt-5">
     <p className="text-sm text-muted-foreground">{status === "failed" ? "Analysis failed. Retry the remaining posts above." : status === "complete" ? "Saved analysis is unavailable." : "Awaiting contextual analysis"}</p>
+    {status !== "complete" && <AnalyzePostButton resultId={resultId} failed={status === "failed"} />}
   </section>;
 }

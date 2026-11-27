@@ -12,11 +12,16 @@ async function search(page: Page, query = "baby") {
   await expect(page).toHaveURL(/\/searches\/[a-f0-9-]+$/);
 }
 
-test("search automatically analyzes one batch, preserves results on reload and analyzes new searches independently", async ({ page }) => {
+test("search and reload spend no AI allowance until a post is explicitly analyzed", async ({ page }) => {
   let calls = 0;
   page.on("request", (request) => { if (request.url().endsWith("/api/analysis")) calls++; });
   await search(page);
   const first = page.getByRole("article").first();
+  await expect(first.getByRole("button", { name: "Analyze post", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(first.getByRole("button", { name: "Analyze post", exact: true })).toBeVisible();
+  expect(calls).toBe(0);
+  await first.getByRole("button", { name: "Analyze post", exact: true }).click();
   await expect(first.getByText("Relevant", { exact: true })).toBeVisible();
   await expect(first.getByText("Simulated analysis — no AI inference", { exact: true })).toBeVisible();
   await expect(first.getByText("Standard reply allowed", { exact: true })).toBeVisible();
@@ -29,8 +34,8 @@ test("search automatically analyzes one batch, preserves results on reload and a
   await page.getByLabel("Keywords or hashtags").fill("daughter");
   await page.getByLabel("Source", { exact: true }).selectOption("fixtures");
   await page.getByRole("button", { name: "Search posts" }).click();
-  await expect(first.getByText("Relevant", { exact: true })).toBeVisible();
-  expect(calls).toBe(2);
+  await expect(first.getByRole("button", { name: "Analyze post", exact: true })).toBeVisible();
+  expect(calls).toBe(1);
 });
 
 test("analysis failure preserves the post, prevents duplicate submission and allows retry", async ({ page }) => {
@@ -43,6 +48,7 @@ test("analysis failure preserves the post, prevents duplicate submission and all
       body: JSON.stringify({ error: "Request limit reached." }) });
   }, { times: 1 });
   await search(page);
+  await page.getByRole("button", { name: "Analyze all posts", exact: true }).click();
   const first = page.getByRole("article").first();
   await expect(page.getByRole("button", { name: "Analyzing…" })).toBeDisabled();
   release();
@@ -56,6 +62,7 @@ test("analysis failure preserves the post, prevents duplicate submission and all
 test("bereavement analysis permits condolences only, without a commercial invitation", async ({ page }) => {
   await search(page, "grief");
   const first = page.getByRole("article").first();
+  await first.getByRole("button", { name: "Analyze post", exact: true }).click();
   await expect(first.getByText("Condolence only — no commercial outreach", { exact: true })).toBeVisible();
   await expect(first.getByText("Bereavement", { exact: true })).toBeVisible();
   await expect(first.getByRole("button", { name: /generate/i })).toHaveCount(0);
@@ -76,6 +83,7 @@ test("twenty pending posts need four sequential calls and no calls on reload", a
   page.on("request", (r) => { if (r.url().endsWith("/api/analysis")) { calls++; active++; maximum = Math.max(maximum, active); } });
   page.on("requestfinished", (r) => { if (r.url().endsWith("/api/analysis")) active--; });
   await page.goto(`/searches/${searchId}`);
+  await page.getByRole("button", { name: "Analyze all posts", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "20 of 20 posts analyzed" })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(20);
   expect(calls).toBe(4); expect(maximum).toBe(1);
@@ -94,12 +102,13 @@ test("relevant posts appear first and unrelated posts stay inspectable in a coll
   await expect(page.getByText("Synthetic unrelated post.", { exact: true }).first()).toBeVisible();
 });
 
-test("a failed automatic batch stops dispatch and preserves the remaining pending posts", async ({ page, request }) => {
+test("a failed requested batch stops dispatch and preserves the remaining pending posts", async ({ page, request }) => {
   await search(page, "unmatchablephrase");
   const { searchId } = await (await request.post("http://127.0.0.1:54329/test/seed-batch?fail=true")).json();
   let calls = 0;
   page.on("request", (r) => { if (r.url().endsWith("/api/analysis")) calls++; });
   await page.goto(`/searches/${searchId}`);
+  await page.getByRole("button", { name: "Analyze all posts", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Analysis could not be completed" })).toBeVisible();
   await expect(page.getByText("Analysis failed. Retry the remaining posts above.", { exact: true })).toHaveCount(5);
   await expect(page.getByText("Awaiting contextual analysis", { exact: true })).toHaveCount(15);

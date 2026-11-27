@@ -4,7 +4,7 @@ Find public conversations and prepare thoughtful replies for human review. Nothi
 
 ## Status
 
-Supabase Auth, keyword search, optional AI phrase suggestions and contextual analysis work. Signed-in users can enter any topic, search public Bluesky posts or labelled synthetic samples, and reopen saved results with explanations and evidence. Pending results are automatically analyzed in sequential batches of five. Reply generation and the saved review workflow are the next implementation milestone.
+Supabase Auth, keyword search, optional AI phrase suggestions and contextual analysis work. Signed-in users can enter any topic, search public Bluesky posts or labelled synthetic samples, and choose individual posts or all remaining posts for analysis. Opening or reloading results makes no analysis calls. Reply generation and the saved review workflow are the next implementation milestone.
 
 ## Run locally
 
@@ -31,7 +31,7 @@ Jest uses Next.js's transformer and Testing Library. Unit tests cover Supabase p
 npm test -- --runInBand
 ```
 
-Playwright covers signup confirmation, invalid login, sessions, saved-result reload, empty results, throttling/retry guidance, explicit source fallback, duplicate submissions, access control, freeform keywords, optional AI suggestions, plain phrase alternatives, refinement and original-post links. Analysis scenarios verify automatic batches, four sequential calls for 20 posts, cached reloads, failure recovery, relevant-first ordering, collapsed unrelated results, sensitivity handling and mobile layout. Reply review tests will arrive with that feature:
+Playwright covers signup confirmation, invalid login, sessions, saved-result reload, empty results, throttling/retry guidance, explicit source fallback, duplicate submissions, access control, freeform keywords, optional AI suggestions, plain phrase alternatives, refinement and original-post links. Analysis scenarios verify zero calls before opting in, individual-post selection, four sequential calls when choosing all 20 posts, cached reloads, failure recovery, relevant-first ordering, collapsed unrelated results, sensitivity handling and mobile layout. Reply review tests will arrive with that feature:
 
 ```sh
 npx playwright install chromium
@@ -48,7 +48,7 @@ Open `/login` or follow Sign in from the homepage. Create an account at `/signup
 
 The hosted project was checked with signup enabled and email confirmation required. Configure Supabase Auth's Site URL and allowed redirect URLs for the eventual deployment. `supabase/config.jsonc` permits local signup too; local configuration does not automatically update hosted settings.
 
-Protected pages verify the session on the server as well as in the session-refresh proxy. Unconfirmed or signed-out accounts cannot enter `/search`. Choose Bluesky or Sample data, enter a phrase/hashtag, and open the saved results. Source-label exclusions happen before saving; live failures never silently become samples. At most 20 posts are returned per search. Opening results starts contextual analysis for pending posts.
+Protected pages verify the session on the server as well as in the session-refresh proxy. Unconfirmed or signed-out accounts cannot enter `/search`. Choose Bluesky or Sample data, enter a phrase/hashtag, and open the saved results. Source-label exclusions happen before saving; live failures never silently become samples. At most 20 posts are returned per search. Searching and viewing results do not invoke AI analysis.
 
 Enter your own keywords or hashtags for any topic; there is no fixed topic list or required quotation syntax. For example, `daughter arrived, baby arrived` finds either phrase. Use up to four comma-separated alternatives and 300 characters total. The server adds quotation syntax to phrase alternatives when building Bluesky requests; ordinary single searches still match all words. Previously quoted alternatives remain accepted and appear as plain phrases when refined. Boolean operators and field filters are treated as literal text rather than an advanced query language. Choose **Refine search** on results to retain your phrases/source. Empty results offer concrete ways to broaden the search. Sample data remains a small fixed set; its topic aliases support ordinary keywords and alternative phrases match sample text.
 
@@ -58,7 +58,9 @@ Each live search fetches one candidate page of up to 50 posts, or up to four par
 
 Original-post links are derived from the stored AT URI and verified author DID with colons preserved. This also repairs previously saved percent-encoded links when rendered, without rewriting saved records.
 
-Analysis starts automatically after retrieval, sending only the saved query and up to five immutable post texts/result IDs to OpenRouter using `OPENROUTER_MODEL`. The server validates the exact requested ID set, relevance/sensitivity enums, bounded explanations and verbatim evidence excerpts. Each batch is saved atomically with model/prompt provenance. Twenty new posts require four AI attempts. Progress is visible; a failed batch stops further dispatch and exposes **Retry analysis** for pending/failed posts. Relevant results appear first and unrelated results remain inspectable in a collapsed section. Closing the page stops dispatching further batches; nothing is queued in the background.
+Analysis is opt-in. **Analyze post** on a card sends only that post in one AI request. **Analyze all posts** processes the remaining results in sequential batches of five; analyzing 20 new posts requires four AI attempts. The controls display the request counts before dispatch. Manual and bulk actions share a pending-state lock to prevent overlapping requests on the same page. Selecting a completed post reuses its saved assessment without spending allowance.
+
+Each request sends only the saved query and selected immutable post texts/result IDs to OpenRouter using `OPENROUTER_MODEL`. The server verifies ownership for the entire selection and validates the exact returned ID set, relevance/sensitivity enums, bounded explanations and verbatim evidence excerpts. Each batch is saved atomically with model/prompt provenance. A failed batch stops further dispatch and exposes an explicit retry. Analyzed relevant results appear first and unrelated results remain inspectable in a collapsed section; this display order uses existing relevance labels and requires no additional AI calls, scores or personal profiles. Unanalyzed posts retain their original order. Closing the page stops dispatching further batches; nothing is queued in the background.
 
 Analysis belongs to the query-specific search result. The same post in another search has independent analysis; completed results are reused without another quota reservation or inference call. Failures stay distinct from irrelevance. Completed results remain stable; there is no regeneration control yet.
 

@@ -79,3 +79,31 @@ test("read or atomic-write errors do not report success", async () => {
   save.mockResolvedValue({ data: null, error: { message: "private" } });
   expect((await POST(request())).status).toBe(503);
 });
+
+test("manual selection analyzes only the requested owned post", async () => {
+  read.mockResolvedValue({ data: [rows[2]], error: null });
+  const response = await POST(request({ searchId: id, resultIds: [rows[2].id] }));
+  expect(response.status).toBe(200);
+  expect(analyzeBatch).toHaveBeenCalledWith("new baby", [{ id: rows[2].id, text: rows[2].source_text_snapshot, source: "fixtures" }]);
+  expect(quota).toHaveBeenCalledTimes(1);
+});
+test("unknown selected IDs are denied before quota", async () => {
+  read.mockResolvedValue({ data: [], error: null });
+  expect((await POST(request({ searchId: id, resultIds: [rows[0].id] }))).status).toBe(403);
+  expect(quota).not.toHaveBeenCalled();
+});
+test("a selected completed post is reused without quota", async () => {
+  read.mockResolvedValue({ data: [{ ...rows[0], analysis_status: "complete" }], error: null });
+  const response = await POST(request({ searchId: id, resultIds: [rows[0].id] }));
+  expect(await response.json()).toEqual({ processed: 0, remaining: 0, cached: true });
+  expect(quota).not.toHaveBeenCalled();
+});
+test("a mixed known/unknown selection is rejected in full", async () => {
+  read.mockResolvedValue({ data: [rows[0]], error: null });
+  expect((await POST(request({ searchId: id, resultIds: [rows[0].id, rows[1].id] }))).status).toBe(403);
+  expect(analyzeBatch).not.toHaveBeenCalled(); expect(quota).not.toHaveBeenCalled();
+});
+test.each([[rows[0].id, rows[0].id], Array(6).fill(rows[0].id), []].map((resultIds) => ({ resultIds })))("invalid selection spends no allowance", async ({ resultIds }) => {
+  expect((await POST(request({ searchId: id, resultIds }))).status).toBe(400);
+  expect(createClient).not.toHaveBeenCalled();
+});

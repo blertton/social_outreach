@@ -1,5 +1,13 @@
 # AI assistance log
 
+## 2026-11-27 — Opt-in analysis and spending controls
+
+- Changed analysis from automatic dispatch to explicit actions after feedback about token usage. Opening or reloading results now makes no analysis requests. Each card offers Analyze post (one post/request); Analyze all processes remaining posts in five-post batches, with the maximum request count shown before dispatch. Saved completed analysis is reused without allowance consumption.
+- Added a bounded optional result-ID selection to the existing route. Every requested ID must belong to the verified account and saved search; missing, duplicate, excessive or foreign selections fail before quota/inference. Completed selected results return cached success without spending allowance. Persistence still uses the existing atomic RPC; no migration was required.
+- Manual and bulk controls share a page-level pending lock so rapid overlapping clicks cannot start duplicate requests. Bulk dispatch remains sequential and stops on failure/navigation. The relevant-first display uses existing relevance labels; no additional AI calls, numeric score or personal profiling was added. Unanalyzed results retain their original order.
+- Wrote the opt-in browser expectation before changing controls and observed the missing manual button fail against the automatic implementation. Route tests first rejected selected IDs before implementation. Corrected the parameterized invalid-selection test shape to avoid Jest interpreting an empty array as a callback case. The final tests verify zero calls before an explicit action, manual selection, independent searches, cached reloads, requested bulk batching and retry/failure behavior.
+- Verification: 160 Jest tests, all 21 production-mode Playwright scenarios, lint, TypeScript and the production build used by E2E passed. Updated detailed README and private phase tracker. No paid inference, hosted writes or schema changes were needed. This iteration is not committed or pushed.
+
 ## 2026-11-27 — Review corrections: draft transitions, batch analysis and README
 
 - Reproduced the reported database bug with a disposable SQL regression: editing a rejected draft while approving it lost the decision. Added a new migration rather than modifying applied history. The trigger now preserves an explicitly changed status when saving text/status together; text-only edits still reset stale decisions and review metadata. SQL cases cover edit-and-approve, edit-and-reject and subsequent text-only reset. Reapproving an edited already-approved draft with the same status remains an explicit-action contract for the future transactional draft-save RPC, documented in the database workflow.

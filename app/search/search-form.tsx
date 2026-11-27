@@ -83,7 +83,7 @@ export function SearchForm({ initialQuery = "", initialSource = "bluesky" }: { i
     <div className="grid gap-2"><label htmlFor="source" className="text-sm font-medium">Source</label>
       <select id="source" name="source" value={source} onChange={(event) => setSource(event.target.value as SourceId)} disabled={busy} className="h-11 rounded-lg border bg-background px-3"><option value="bluesky">Bluesky — public posts</option><option value="fixtures">Sample data — synthetic examples</option></select>
     </div>
-    <p className="text-sm leading-relaxed text-muted-foreground">Up to 20 search matches. Results are analyzed automatically in batches of five. A life event does not establish insurance need. Nothing is sent automatically.</p>
+    <p className="text-sm leading-relaxed text-muted-foreground">Up to 20 search matches. AI analysis is optional: choose individual posts or analyze all after reviewing the results. Nothing is sent automatically.</p>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     <Button type="submit" disabled={busy} className="h-11 w-fit px-6">{pending ? "Searching…" : "Search posts"}</Button>
   </form>;
