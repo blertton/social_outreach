@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   try {
     if (!hasSameOrigin(request)) return NextResponse.json({ error: "Request origin is not allowed." }, { status: 403, headers });
     const parsed = searchInput.safeParse(await readJsonBody(request));
-    if (!parsed.success) return NextResponse.json({ error: "Use 1–300 characters, up to four comma-separated phrases with matching quotes, and a valid source." }, { status: 400, headers });
+    if (!parsed.success) return NextResponse.json({ error: "Use 1–300 characters, up to four comma-separated phrases, and a valid source." }, { status: 400, headers });
     const client = await createClient();
     const id = await withUsageGate(client, "search", async (userId) => {
       const admin = createAdminClient();

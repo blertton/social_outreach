@@ -13,14 +13,14 @@ test("users choose their own phrases without fixed topics or AI and can refine t
   let aiCalls = 0;
   page.on("request", (request) => { if (request.url().includes("/api/search/suggestions")) aiCalls++; });
   await page.getByLabel("Source", { exact: true }).selectOption("fixtures");
-  await page.getByLabel("Keywords or hashtags").fill('"daughter arrived", "baby arrived"');
+  await page.getByLabel("Keywords or hashtags").fill("daughter arrived, baby arrived");
   await page.getByRole("button", { name: "Search posts" }).click();
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(page.getByRole("article")).toContainText("Our daughter arrived yesterday.");
   await expect(page.getByRole("article")).toContainText("Not analyzed yet");
   await page.screenshot({ path: "test-results/targeted-results.png", fullPage: true });
   await page.getByRole("link", { name: "Refine search" }).click();
-  await expect(page.getByLabel("Keywords or hashtags")).toHaveValue('"daughter arrived", "baby arrived"');
+  await expect(page.getByLabel("Keywords or hashtags")).toHaveValue("daughter arrived, baby arrived");
   await expect(page.getByLabel("Source", { exact: true })).toHaveValue("fixtures");
   expect(aiCalls).toBe(0);
 });
@@ -33,10 +33,19 @@ test("optional AI suggestions extend any topic only when explicitly added, witho
   await expect(page.getByText("Simulated suggestions — no AI inference", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Keywords or hashtags")).toHaveValue("cat adoption");
   await page.getByRole("button", { name: "Add “cat adoption story”", exact: true }).click();
-  await expect(page.getByLabel("Keywords or hashtags")).toHaveValue('cat adoption, "cat adoption story"');
+  await expect(page.getByLabel("Keywords or hashtags")).toHaveValue("cat adoption, cat adoption story");
   expect(searches).toBe(0);
   await page.getByLabel("Keywords or hashtags").fill('"daughter arrived"');
   await expect(page.getByRole("button", { name: "Add “cat adoption story”", exact: true })).toHaveCount(0);
+});
+
+test("refining a legacy quoted alternative search shows plain phrases", async ({ page }) => {
+  const params = new URLSearchParams({ query: '"daughter arrived", "baby arrived"', source: "fixtures" });
+  await page.goto(`/search?${params}`);
+  await expect(page.getByLabel("Keywords or hashtags")).toHaveValue("daughter arrived, baby arrived");
+  await page.getByRole("button", { name: "Search posts", exact: true }).click();
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByRole("article")).toContainText("Our daughter arrived yesterday.");
 });
 
 test("AI suggestion failures preserve keywords and leave manual search available", async ({ page }) => {

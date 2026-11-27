@@ -1,11 +1,26 @@
 /** @jest-environment node */
-import { toBlueskyQueries, matchesSampleQuery } from "@/lib/search/query";
+import { toBlueskyQueries, matchesSampleQuery, normalizeSearchAlternatives } from "@/lib/search/query";
 import { searchInput } from "@/lib/search/schema";
 
 test("comma-separated alternatives become bounded separate phrase queries", () => {
   expect(toBlueskyQueries('new baby, "daughter arrived", #newparent')).toEqual(['"new baby"', '"daughter arrived"', '#newparent']);
   expect(matchesSampleQuery('"baby arrived", "daughter arrived"', "Our daughter arrived yesterday.")).toBe(true);
   expect(matchesSampleQuery('"baby arrived", "daughter arrived"', "Baby clothes on sale.")).toBe(false);
+});
+
+test("plain alternatives get provider quoting automatically and preserve legacy matching", () => {
+  const plain = "bought a house, first home purchase, #newhome";
+  expect(toBlueskyQueries(plain)).toEqual(['"bought a house"', '"first home purchase"', "#newhome"]);
+  expect(toBlueskyQueries(plain)).toEqual(toBlueskyQueries('bought a house, "first home purchase", #newhome'));
+});
+
+test("legacy alternative searches display as plain text without changing provider queries", () => {
+  const legacy = '"daughter arrived", "baby arrived"';
+  const plain = normalizeSearchAlternatives(legacy);
+  expect(plain).toBe("daughter arrived, baby arrived");
+  expect(toBlueskyQueries(plain)).toEqual(toBlueskyQueries(legacy));
+  expect(normalizeSearchAlternatives('"first house"')).toBe('"first house"');
+  expect(normalizeSearchAlternatives("baby,,home")).toBe("baby,,home");
 });
 
 test("ordinary searches match all words and quotes request one exact phrase", () => {

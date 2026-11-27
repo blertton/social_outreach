@@ -3,13 +3,13 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { searchInput } from "@/lib/search/schema";
-import { parseSearchQuery } from "@/lib/search/query";
+import { normalizeSearchAlternatives, parseSearchQuery } from "@/lib/search/query";
 import { appendSearchPhrase, suggestionSchema } from "@/lib/search/suggestions";
 import type { SourceId } from "@/lib/sources/types";
 
 export function SearchForm({ initialQuery = "", initialSource = "bluesky" }: { initialQuery?: string; initialSource?: SourceId }) {
   const router = useRouter();
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState(() => normalizeSearchAlternatives(initialQuery));
   const [source, setSource] = useState<SourceId>(initialSource);
   const [pending, setPending] = useState(false); const [error, setError] = useState("");
   const [suggesting, setSuggesting] = useState(false);
@@ -61,8 +61,8 @@ export function SearchForm({ initialQuery = "", initialSource = "bluesky" }: { i
   }}>
     <div className="grid gap-2"><label htmlFor="query" className="text-sm font-medium">Keywords or hashtags</label>
       <textarea ref={queryField} id="query" name="query" value={query} onChange={(event) => { setQuery(event.target.value); setSuggestions(null); setError(""); }} disabled={busy}
-        required rows={3} maxLength={300} aria-describedby="query-help" placeholder={'e.g. "our first home", "bought a house"'} className="w-full min-w-0 resize-y rounded-lg border px-4 py-3 leading-relaxed focus-visible:outline-2 focus-visible:outline-ring" />
-      <p id="query-help" className="text-sm leading-relaxed text-muted-foreground">Enter your own topic or hashtags. Separate up to four alternative phrases with commas. Quotes request a phrase match; without quotes, a single search matches all words.</p>
+        required rows={3} maxLength={300} aria-describedby="query-help" placeholder="e.g. our first home, bought a house" className="w-full min-w-0 resize-y rounded-lg border px-4 py-3 leading-relaxed focus-visible:outline-2 focus-visible:outline-ring" />
+      <p id="query-help" className="text-sm leading-relaxed text-muted-foreground">Enter your own topic or hashtags. Separate up to four alternative phrases with commas. No quotation marks needed.</p>
     </div>
     <div className="space-y-3 rounded-lg border p-4">
       <Button type="button" variant="outline" disabled={busy || !query.trim()} onClick={suggest}>{suggesting ? "Suggesting…" : "Suggest more phrases with AI"}</Button>

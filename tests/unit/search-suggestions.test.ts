@@ -39,7 +39,9 @@ test("failure and unfinished output never trigger retries or leak provider detai
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 test("adding a suggestion preserves existing keywords, avoids duplicates and enforces search bounds", () => {
-  expect(appendSearchPhrase("cat adoption", "new rescue cat")).toBe('cat adoption, "new rescue cat"');
+  expect(appendSearchPhrase("cat adoption", "new rescue cat")).toBe("cat adoption, new rescue cat");
+  expect(appendSearchPhrase('bought a house, "first home purchase"', "just closed on our house"))
+    .toBe("bought a house, first home purchase, just closed on our house");
   expect(appendSearchPhrase('"new rescue cat"', "NEW RESCUE CAT")).toBe('"new rescue cat"');
   expect(() => appendSearchPhrase("one,two,three,four", "five")).toThrow("Keep up to four phrases");
   expect(() => appendSearchPhrase("x".repeat(299), "new rescue cat")).toThrow("300 characters");

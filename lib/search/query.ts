@@ -1,4 +1,4 @@
-const queryError = "Use up to four comma-separated phrases. Put matching quotes around a whole phrase.";
+const queryError = "Use up to four comma-separated phrases. Remove empty phrases or unfinished quotation marks.";
 
 export function parseSearchQuery(query: string): { text: string; exact: boolean }[] {
   const parts = query.trim().split(",");
@@ -11,6 +11,15 @@ export function parseSearchQuery(query: string): { text: string; exact: boolean 
     return { text, exact: parts.length > 1 || quoted };
   });
   return parsed.filter((part, index) => parsed.findIndex((p) => p.text.toLowerCase() === part.text.toLowerCase() && p.exact === part.exact) === index);
+}
+
+// Commas already make each alternative a phrase. Legacy wrapper quotes are
+// unnecessary in the editor; keep single-search matching and invalid edits intact.
+export function normalizeSearchAlternatives(query: string): string {
+  try {
+    const parts = parseSearchQuery(query);
+    return parts.length > 1 ? parts.map((part) => part.text).join(", ") : query;
+  } catch { return query; }
 }
 
 function quote(text: string) { return `"${text.replace(/\\/g, "\\\\")}"`; }

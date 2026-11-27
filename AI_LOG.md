@@ -1,5 +1,12 @@
 # AI assistance log
 
+## 2026-11-27 — Plain-text search phrases
+
+- The user identified unnecessary quotation syntax in the editable search field. The backend already formats comma-separated alternatives as phrase queries; AI additions were unnecessarily inserting visible quotes and the help text encouraged users to manage them.
+- Updated the acceptance expectation before implementation and observed both the unit and browser tests fail on the extra quotes. AI additions now keep alternatives as plain text, including when adding to an older mixed quoted/unquoted list. Refining legacy quoted alternatives removes wrapper quotes for display. Existing explicit single-phrase matching and invalid edits are preserved, and saved records are not rewritten.
+- Simplified placeholder/help/validation wording. Added tests proving that plain alternatives produce the same provider requests as legacy quoted alternatives, plus end-to-end manual search, AI addition and legacy-refinement coverage. Provider prompts, inference calls, quotas and matching rules were not changed.
+- Verification: 150 Jest tests, all 18 production-mode Playwright scenarios, lint, TypeScript and the production build used by E2E passed. No paid inference, hosted writes, migrations, commits or pushes were needed for this UX correction. Updated README and the private phase tracker.
+
 ## 2026-11-27 — Freeform search, optional AI expansion and original-post link repair
 
 - During pre-commit review the user reported that every original-post link opened Bluesky's Invalid DID page. The URL builder incorrectly percent-encoded DID colons, and the earlier tests only checked its hostname. Added a failing exact-URL assertion and observed a browser regression fail on a previously saved encoded URL. Centralized identity-validated link generation with raw DID colons and derive display links from the saved AT URI/author, repairing existing records at render time without a migration. This was a missed boundary in the previous review, now corrected before committing.
